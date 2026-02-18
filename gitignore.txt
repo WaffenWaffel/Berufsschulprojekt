@@ -1,0 +1,14 @@
+# node_modules in allen Unterordnern ignorieren
+node_modules/
+dist/
+.env
+
+# Vite/Frontend spezifisch
+biogas_digitalisierung/dist/
+biogas_digitalisierung/.env
+
+# Server spezifisch
+server/dist/
+server/.env
+
+.vscode/
