@@ -31,8 +31,49 @@ import { format } from "date-fns"
 
 export function CreateAnalysis() {
     const [date, setDate] = useState<Date | undefined>()
+
+    const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    const [formData, setFormData] = useState({
+        Stickstoff: "",
+        Amoniumstickstoff:"",
+        Phosphat: "",
+        Kalium: "",
+        Datum: "",
+    });
+
+    const handleSave =async () => {
+        setLoading(true);
+        try{
+            const response = await fetch('/api/neueAnalyse', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ...formData,
+                    Stickstoff: Number(formData.Stickstoff),
+                    Amoniumstickstoff: Number(formData.Amoniumstickstoff),
+                    Phosphat: Number(formData.Phosphat),
+                    Kalium: Number(formData.Kalium),
+                }),
+            });
+            if(!response.ok){
+                throw new Error("Fehler beim Speichern")
+            }
+            setOpen(false)
+            // const result = await response.json();
+            // console.log("Server sagt:", result.message);
+        } catch (error){
+            console.error("Fehler beim POST:" , error)
+        } finally{
+            setLoading(false);
+        }
+    }
+
     return(
-        <Dialog>
+        <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger>
                 <Button variant="outline">Neuen Analyse anlegen</Button>
             </DialogTrigger>
@@ -46,11 +87,21 @@ export function CreateAnalysis() {
                            </FieldDescription>
                        <Field>
                            <FieldLabel htmlFor="stickstoff">Gesamtstickstoff</FieldLabel>
-                           <Input id="stickstoff" type="number" placeholder="" />
+                           <Input 
+                            id="stickstoff" 
+                            type="number" 
+                            placeholder=""
+                            value={formData.Stickstoff} 
+                            onChange={(e) => setFormData({...formData, Stickstoff: e.target.value})}  />
                        </Field>
                        <Field>
                            <FieldLabel htmlFor="amoniumstickstoff">Amoniumstickstoff</FieldLabel>
-                           <Input id="amoniumstickstoff" type="nubmer" placeholder="" />
+                           <Input 
+                            id="amoniumstickstoff" 
+                            type="nubmer" 
+                            placeholder=""
+                            value={formData.Amoniumstickstoff} 
+                            onChange={(e) => setFormData({...formData, Amoniumstickstoff: e.target.value})}  />
                        </Field>
                        <Field>
                            <FieldLabel htmlFor="phosphat">Phosphat</FieldLabel>
@@ -58,7 +109,12 @@ export function CreateAnalysis() {
                        </Field>
                        <Field>
                            <FieldLabel htmlFor="kalium">Kalium</FieldLabel>
-                           <Input id="kalium" type="number" placeholder="" />
+                           <Input 
+                            id="kalium" 
+                            type="number" 
+                            placeholder="" 
+                            value={formData.Kalium} 
+                            onChange={(e) => setFormData({...formData, Kalium: e.target.value})} />
                        </Field>
                        <Field>
                             <FieldLabel >Datum</FieldLabel>
@@ -74,7 +130,12 @@ export function CreateAnalysis() {
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={date} onSelect={setDate} />
+                                    <Calendar 
+                                        mode="single" 
+                                        selected={date} 
+                                        onSelect={setDate} 
+                                        value={formData.KundenNr} 
+                                        onChange={(e) => setFormData({...formData, KundenNr: e.target.value})} />
                                 </PopoverContent>
                             </Popover>
                        </Field>
@@ -83,7 +144,7 @@ export function CreateAnalysis() {
                 </DialogHeader>
                 <DialogFooter className="sm:justify-start">
                   <DialogClose asChild>
-                    <Button type="submit" color="#rgba(15, 145, 178)" variant="outline">Erstellen</Button>
+                    <Button type="submit" color="#rgba(15, 145, 178)" variant="outline" onClick={handleSave} disabled={loading}>Erstellen</Button>
                   </DialogClose>
                 </DialogFooter>
             </DialogContent>

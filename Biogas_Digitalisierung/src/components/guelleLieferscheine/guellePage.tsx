@@ -10,29 +10,13 @@ import { CreateAnalysis } from "./createAnalysis";
 
 async function getData(): Promise<GuelleDaten[]> {
   // Fetch data from your API here.
-  const response = await fetch('/api/waagedaten');
+  const response = await fetch('/api/guelleDaten');
 
   if (!response.ok){
     throw new Error ('Fehler beim Laden der Daten vom Server')
   }
 
   return response.json();
-
-  // return [
-  //   {
-  //     KundenNr: 0,
-  //     Kunde: "Nass",
-  //     Menge: 300,
-  //     Datum: "16.02.2025",
-  //   },
-  //   {
-  //     KundenNr: 1,
-  //     Kunde: "Albrecht",
-  //     Menge: 200,
-  //     Datum: "16.05.2026"
-  //   }
-  //   // ...
-  // ]
 }
 
 export function GuellePage() {

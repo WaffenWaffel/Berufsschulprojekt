@@ -30,3 +30,33 @@ export const columns: ColumnDef<GuelleDaten>[] = [
     header: "Datum",
   }
 ]
+
+
+export type GuelleKunden = {
+  KundenNr: number;
+  Name: string;
+  Vorname: string;
+  PLZ: number;
+  Wohnort: string;
+  Straße: string;
+  HNr: string;
+}
+
+// export const columns: ColumnDef<KundenNr>[] = [
+// {
+//   accessorKey: "KundenNr",
+//   header: "KundenNr",
+// },
+// {
+//   accessorKey: "Kunde",
+//   header: "Kunde",
+// },
+// {
+//   accessorKey: "Menge",
+//   header: "Menge in m³",
+// },
+// {
+//   accessorKey: "Datum",
+//   header: "Datum",
+// }
+// ]
