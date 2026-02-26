@@ -30,7 +30,7 @@ import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
 
 export function CreateAnalysis() {
-    const [date, setDate] = useState<Date | undefined>()
+    const [date, setDate] = useState<Date>();
 
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -46,7 +46,7 @@ export function CreateAnalysis() {
     const handleSave =async () => {
         setLoading(true);
         try{
-            const response = await fetch('/api/neueAnalyse', {
+            const response = await fetch('/api/newAnalysis', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -57,6 +57,7 @@ export function CreateAnalysis() {
                     Amoniumstickstoff: Number(formData.Amoniumstickstoff),
                     Phosphat: Number(formData.Phosphat),
                     Kalium: Number(formData.Kalium),
+                    Datum: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
                 }),
             });
             if(!response.ok){
@@ -133,9 +134,7 @@ export function CreateAnalysis() {
                                     <Calendar 
                                         mode="single" 
                                         selected={date} 
-                                        onSelect={setDate} 
-                                        value={formData.KundenNr} 
-                                        onChange={(e) => setFormData({...formData, KundenNr: e.target.value})} />
+                                        onSelect={setDate}  />
                                 </PopoverContent>
                             </Popover>
                        </Field>

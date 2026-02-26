@@ -39,7 +39,7 @@ export function CreateCustomer() {
     const handleSave =async () => {
         setLoading(true);
         try{
-            const response = await fetch('/api/neuerKunde', {
+            const response = await fetch('/api/newCustomer', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

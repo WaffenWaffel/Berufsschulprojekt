@@ -42,6 +42,11 @@ export type GuelleKunden = {
   HNr: string;
 }
 
+export type Analysen = {
+  ID: number;
+  Datum: string;
+}
+
 // export const columns: ColumnDef<KundenNr>[] = [
 // {
 //   accessorKey: "KundenNr",

@@ -1,7 +1,7 @@
 // import { useState } from "react";
 import { CreateCustomer } from "@/components/guelleLieferscheine/createCustomer";
 import { ModeToggle } from "../mode-toggle";
-import { GuelleInput } from "./guelleInput";
+import { GuelleInput } from "./createRecord";
 import { columns, type GuelleDaten } from "./columns";
 import { useEffect, useState } from "react";
 import { DataTable } from "../dataTable";
@@ -10,7 +10,7 @@ import { CreateAnalysis } from "./createAnalysis";
 
 async function getData(): Promise<GuelleDaten[]> {
   // Fetch data from your API here.
-  const response = await fetch('/api/guelleDaten');
+  const response = await fetch('/api/getGuelleDaten');
 
   if (!response.ok){
     throw new Error ('Fehler beim Laden der Daten vom Server')
@@ -40,7 +40,7 @@ export function GuellePage() {
       <header className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gülle Lieferscheine</h1>
-          <p className="text-sm text-muted-foreground">Übersicht und Verwaltung der Abholungen</p>
+          {/* <p className="text-sm text-muted-foreground">Übersicht und Verwaltung der Abholungen</p> */}
         </div>
         <ModeToggle />
       </header>
