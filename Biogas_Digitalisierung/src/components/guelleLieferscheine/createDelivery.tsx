@@ -9,7 +9,7 @@ import {
     ComboboxChipsInput,
     ComboboxContent,
     ComboboxEmpty,
-    ComboboxInput,
+    // ComboboxInput,
     ComboboxItem,
     ComboboxList,
     ComboboxValue,
@@ -53,7 +53,7 @@ export function CreateDelivery() {
   const [analysen, setAnalysen] = useState<Analysen[]>([]);
   const [selectedKunde, setSelectedKunde] = useState<GuelleKunden | null>(null);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  // const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetch('/api/getCustomer')
@@ -82,14 +82,26 @@ export function CreateDelivery() {
   
     // 3. Abschicken
     try {
-      const response = await fetch('/api/newAnalysis', {
+      const response = await fetch('/api/newDelivery', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       
       if (response.ok) {
-        console.log("Erfolgreich gespeichert!");
+        const blob = await response.blob();
+  
+        // Einen temporären Link im Browser erstellen und "anklicken"
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "Lieferschein.pdf"; // Dateiname im Browser
+        document.body.appendChild(a);
+        a.click();
+        
+        // Aufräumen
+        a.remove();
+        window.URL.revokeObjectURL(url);
       }
     } catch (error) {
       console.error("Fehler beim Senden:", error);
@@ -183,8 +195,11 @@ export function CreateDelivery() {
           </Field>
         </CardContent>
         <CardFooter>
-        <Button className="w-full" onClick={handleSave} disabled={loading}>
-          {loading ? "Speichert..." : "Speichern"}
+        <Button className="w-full" onClick={handleSave} 
+        // disabled={loading}
+        >
+          {/* {loading ? "Speichert..." : "Speichern"} */}
+          {"Speichern"}
         </Button>
         </CardFooter>
     </Card>

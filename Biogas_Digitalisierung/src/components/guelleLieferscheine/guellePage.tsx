@@ -1,12 +1,12 @@
 // import { useState } from "react";
-import { CreateCustomer } from "@/components/guelleLieferscheine/createCustomer";
+import { ManageCustomer } from "@/components/guelleLieferscheine/manageCustomer";
 import { ModeToggle } from "../mode-toggle";
 import { GuelleInput } from "./createRecord";
 import { columns, type GuelleDaten } from "./columns";
 import { useEffect, useState } from "react";
 import { DataTable } from "../dataTable";
 import { CreateDelivery } from "./createDelivery";
-import { CreateAnalysis } from "./createAnalysis";
+import { ManageAnalysis } from "./manageAnalysis";
 
 async function getData(): Promise<GuelleDaten[]> {
   // Fetch data from your API here.
@@ -64,8 +64,8 @@ export function GuellePage() {
              <div className="flex items-center gap-2 mr-4">
                 <span className="text-xs font-semibold uppercase text-slate-500">Stammdaten:</span>
              </div>
-             <CreateCustomer />
-             <CreateAnalysis />
+             <ManageCustomer />
+             <ManageAnalysis />
           </div>
         </div>
 

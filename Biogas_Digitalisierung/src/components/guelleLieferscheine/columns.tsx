@@ -47,6 +47,15 @@ export type Analysen = {
   Datum: string;
 }
 
+export type Analyse = {
+  id: number;
+  Stickstoff: number;
+  Amoniumstickstoff: number;
+  Phosphat: number;
+  Kalium: number;
+  Datum: string;
+}
+
 // export const columns: ColumnDef<KundenNr>[] = [
 // {
 //   accessorKey: "KundenNr",
