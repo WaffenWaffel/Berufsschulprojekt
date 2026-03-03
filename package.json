@@ -3,5 +3,12 @@
     "dev:client": "cd biogas_digitalisierung && npm run dev",
     "dev:server": "npm run dev --prefix server",
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\""
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "csv-parser": "^3.2.0"
   }
 }

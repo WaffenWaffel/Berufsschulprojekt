@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Tabelle: Erzeuger (Stammdaten der Landwirte)
+model Erzeuger {
+  id           Int      @id @default(autoincrement())
+  erzeugerId   Int      @unique // ID aus der CSV (z.B. 1)
+  name         String   // Erzeuger Name
+  strasse      String?
+  ort          String?
+  plz          String?
+  
+  schlaege     Schlag[]
+}
+
+// 2. Tabelle: Schlag (Stammdaten der Felder)
+model Schlag {
+  id           Int      @id @default(autoincrement())
+  schlagIdExt  Int      @unique // Schlag ID aus der CSV (z.B. 53)
+  name         String   // Schlag Name (z.B. "Goldacker am Bullenstall")
+  groesseHa    Float?   // Wird später für Berechnungen pro ha benötigt
+  
+  erzeugerId   Int
+  erzeuger     Erzeuger @relation(fields: [erzeugerId], references: [id])
+  
+  waegungen    Waegung[]
+}
+
+// 3. Tabelle: Sorte (Kategorisierung)
+model Sorte {
+  id        Int       @id @default(autoincrement())
+  sorteId   Int       @unique // Sorte ID aus der CSV (z.B. 1)
+  name      String    // Sorte Name (z.B. "Silomais")
+  waegungen Waegung[]
+}
+
+// 4. Tabelle: Waegung (Die eigentlichen Wiegedaten / Fuhren)
+model Waegung {
+  id              Int      @id @default(autoincrement())
+  wsNr            Int      @unique // Wägeschein-Nr (z.B. 9409)
+  datum           DateTime // ZW Datum
+  uhrzeit         String   // ZW Uhrzeit
+  netto           Float    // Netto Gewicht in t (z.B. 14.04)
+  kennzeichen1     String?  // 1.Kennzeichen (z.B. "DON DO 315")
+  kennzeichen2     String?  // 2.Kennzeichen (z.B. "WAGNER MULDE")
+  
+  // Auswertungsfelder (werden über deine UI befüllt)
+  tsGehalt        Float?   // Trockensubstanz Gehalt in %
+  
+  schlagId        Int
+  schlag          Schlag   @relation(fields: [schlagId], references: [id])
+  
+  sorteId         Int
+  sorte           Sorte    @relation(fields: [sorteId], references: [id])
+
+  createdAt       DateTime @default(now())
+}
+
+// 5. Tabelle: GülleKunden (Voll eigenständig)
+model GuelleKunden {
+  id        Int      @id @default(autoincrement())
+  kundenNr  Int      @unique 
+  name      String
+  vorname   String
+  plz       Int
+  wohnort   String
+  strasse   String
+  hNr       String
+}
+
+// 6. Tabelle: Analyse (Voll eigenständig)
+model Analyse {
+  id                 Int      @id @default(autoincrement())
+  stickstoff         Float    
+  amoniumstickstoff  Float
+  phosphat           Float
+  kalium             Float
+  datum              DateTime 
+}
