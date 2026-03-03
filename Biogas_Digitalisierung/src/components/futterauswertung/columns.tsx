@@ -8,7 +8,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 // You can use a Zod schema here if you want.
 
 export type FutterDaten = {
-    Schlag_ID: Number;
+    Schlag_ID: number;
     Schlag_Name: String;
     Vorname: String;
     Name: String;

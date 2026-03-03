@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { generateDeliveryNotePdf } from './delivery_service'; // Deine Funktion von oben
+import { generateExcel } from './yield_service';
 
 const app = express();
 const PORT = 3001; // Vite nutzt meist 5173, also nehmen wir 3001
@@ -24,37 +25,37 @@ app.put('/api/updateCustomer/:id', async (req, res) => {
   const { id } = req.params; // Die ID aus der URL
   const { Name, Vorname, PLZ, Wohnort, Straße, HNr } = req.body;
 
-  try {
-    const updatedKunde = await prisma.kunde.update({
-      where: { kundenNr: Number(id) },
-      data: {
-        name: Name,
-        vorname: Vorname,
-        plz: Number(PLZ),
-        wohnort: Wohnort,
-        straße: Straße,
-        hnr: HNr,
-      },
-    });
-    res.json(updatedKunde);
-  } catch (error) {
-    console.error("Update Fehler:", error);
-    res.status(500).json({ error: "Kunde konnte nicht aktualisiert werden" });
-  }
+  // try {
+  //   const updatedKunde = await prisma.kunde.update({
+  //     where: { kundenNr: Number(id) },
+  //     data: {
+  //       name: Name,
+  //       vorname: Vorname,
+  //       plz: Number(PLZ),
+  //       wohnort: Wohnort,
+  //       straße: Straße,
+  //       hnr: HNr,
+  //     },
+  //   });
+  //   res.json(updatedKunde);
+  // } catch (error) {
+  //   console.error("Update Fehler:", error);
+  //   res.status(500).json({ error: "Kunde konnte nicht aktualisiert werden" });
+  // }
 });
 
 app.delete('/api/deleteCustomer/:id', async (req, res) => {
   const { id } = req.params;
 
-  try {
-    await prisma.kunde.delete({
-      where: { kundenNr: Number(id) },
-    });
-    res.json({ message: "Kunde erfolgreich gelöscht" });
-  } catch (error) {
-    console.error("Delete Fehler:", error);
-    res.status(500).json({ error: "Kunde konnte nicht gelöscht werden" });
-  }
+  // try {
+  //   await prisma.kunde.delete({
+  //     where: { kundenNr: Number(id) },
+  //   });
+  //   res.json({ message: "Kunde erfolgreich gelöscht" });
+  // } catch (error) {
+  //   console.error("Delete Fehler:", error);
+  //   res.status(500).json({ error: "Kunde konnte nicht gelöscht werden" });
+  // }
 });
 
 app.get('/api/getAnalysis', (req: Request, res: Response) => {
@@ -69,36 +70,36 @@ app.put('/api/updateAnalysis/:id', async (req, res) => {
   const { id } = req.params;
   const { Stickstoff, Amoniumstickstoff, Phosphat, Kalium, Datum } = req.body;
 
-  try {
-    const updatedAnalysis = await prisma.analyse.update({
-      where: { id: Number(id) },
-      data: {
-        stickstoff: Number(Stickstoff),
-        amoniumstickstoff: Number(Amoniumstickstoff),
-        phosphat: Number(Phosphat),
-        kalium: Number(Kalium),
-        datum: new Date(Datum), // Wichtig: String zu Date umwandeln
-      },
-    });
-    res.json(updatedAnalysis);
-  } catch (error) {
-    console.error("Update Fehler:", error);
-    res.status(500).json({ error: "Analyse konnte nicht aktualisiert werden" });
-  }
+  // try {
+  //   const updatedAnalysis = await prisma.analyse.update({
+  //     where: { id: Number(id) },
+  //     data: {
+  //       stickstoff: Number(Stickstoff),
+  //       amoniumstickstoff: Number(Amoniumstickstoff),
+  //       phosphat: Number(Phosphat),
+  //       kalium: Number(Kalium),
+  //       datum: new Date(Datum), // Wichtig: String zu Date umwandeln
+  //     },
+  //   });
+  //   res.json(updatedAnalysis);
+  // } catch (error) {
+  //   console.error("Update Fehler:", error);
+  //   res.status(500).json({ error: "Analyse konnte nicht aktualisiert werden" });
+  // }
 });
 
 // DELETE: Analyse löschen
 app.delete('/api/deleteAnalysis/:id', async (req, res) => {
   const { id } = req.params;
 
-  try {
-    await prisma.analyse.delete({
-      where: { id: Number(id) },
-    });
-    res.json({ message: "Analyse erfolgreich gelöscht" });
-  } catch (error) {
-    res.status(500).json({ error: "Fehler beim Löschen der Analyse" });
-  }
+  // try {
+  //   await prisma.analyse.delete({
+  //     where: { id: Number(id) },
+  //   });
+  //   res.json({ message: "Analyse erfolgreich gelöscht" });
+  // } catch (error) {
+  //   res.status(500).json({ error: "Fehler beim Löschen der Analyse" });
+  // }
 });
 
 // app.use(express.json());
@@ -209,6 +210,109 @@ app.post('/api/newDelivery', async (req: Request, res: Response) => {
     res.status(500).send('Fehler bei der PDF-Erstellung');
   }
 })
+
+// export type FutterDaten = {
+//   Schlag_ID: Number;
+//   Schlag_Name: String;
+//   Vorname: String;
+//   Name: String;
+//   Größe: Number;
+//   Ertrag: Number;
+//   Feuchtmasse: Number;
+//   TS_Gehlat: Number;
+//   Trockenmasse: Number;
+//   Trockenmasse_pro_ha: Number;
+//   Sorte: String;
+// }
+
+app.get('/api/getSchlagID', (req: Request, res: Response) => {
+  res.json([
+    { Schlag_ID: 94,
+      Schlag_Name: "Am Aussiedlerhof",
+      Vorname: "Friedrich",
+      Name: "Ebert",
+      Größe: 2.86,
+      Ertrag: 144.14,
+      Feuchtmasse: 50.40,
+      TS_Gehlat: 39.48,
+      Trockenmasse: 569.06,
+      Trockenmasse_pro_ha: 198.97,
+      Sorte: "Mais",
+    },
+    { Schlag_ID: 95,
+      Schlag_Name: "Am Aussiedlerhof",
+      Vorname: "Friedrich",
+      Name: "Ebert",
+      Größe: 2.86,
+      Ertrag: 144.14,
+      Feuchtmasse: 50.40,
+      TS_Gehlat: 39.48,
+      Trockenmasse: 569.06,
+      Trockenmasse_pro_ha: 198.97,
+      Sorte: "Mais",}
+  ]);
+});
+
+app.post('/api/newTsGehalt', (req: Request, res: Response) => {
+  const neuerGuelleDatensatz = req.body;
+
+  console.log("Empfangene Daten:", neuerGuelleDatensatz);
+  res.status(201).json({
+    message: "Datensatz erfolgreich empfangen",
+    eintrag: neuerGuelleDatensatz
+  })
+})
+
+app.put('/api/updateSchlag/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { TS_Gehlat } = req.body; // Wir behalten deinen Typo "Gehlat" bei, damit es zum Frontend passt
+
+  // Validierung
+  if (TS_Gehlat === undefined || isNaN(Number(TS_Gehlat))) {
+    return res.status(400).json({ error: "Ungültiger TS-Gehalt Wert" });
+  }
+
+  console.log(`Update für Schlag ${id}: Neuer TS-Gehalt ist ${TS_Gehlat}%`);
+
+  /* DATENBANK-LOGIK HIER:
+     Beispiel mit SQL:
+     db.query('UPDATE schlaege SET TS_Gehlat = ? WHERE Schlag_ID = ?', [TS_Gehlat, id]);
+  */
+
+  res.json({ 
+    success: true, 
+    message: `Schlag ${id} erfolgreich aktualisiert.`,
+    updatedValue: TS_Gehlat 
+  });
+});
+
+app.get('/api/exportExcel', async (req: Request, res: Response) => {
+  try {
+    // 1. Daten holen (die gleiche Logik wie in getSchlagID)
+    const data = [
+       { 
+         Schlag_ID: 94, 
+         Schlag_Name: "am Aussiedlerhof", 
+         Vorname: "Friedrich", 
+         Name: "Ebert", 
+         Größe: 2.86, 
+         Ertrag: 144.14, 
+         Feuchtmasse: 50.40, 
+         TS_Gehlat: 39.48, 
+         Trockenmasse: 569.06, 
+         Trockenmasse_pro_ha: 198.97, 
+         Sorte: "Mais" 
+       },
+       // ... weitere Datensätze
+    ];
+
+    // 2. Excel erstellen und senden
+    await generateExcel(data, res);
+    
+  } catch (error) {
+    res.status(500).send("Excel Export fehlgeschlagen");
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
