@@ -42,7 +42,7 @@ model Schlag {
 model Sorte {
   id        Int       @id @default(autoincrement())
   sorteId   Int       @unique // Sorte ID aus der CSV (z.B. 1)
-  name      String    // Sorte Name (z.B. "Silomais")
+  name      String    @unique    // Sorte Name (z.B. "Silomais")
   waegungen Waegung[]
 }
 
