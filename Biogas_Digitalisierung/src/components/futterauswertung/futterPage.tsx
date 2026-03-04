@@ -1,44 +1,45 @@
 import { ModeToggle } from "../mode-toggle";
 import { columns, type FutterDaten } from "./columns"
 import { DataTable } from "../dataTable";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ManageTSGehalt } from "./manageTSGehalt";
 import { ExportExcelButton } from "./exportButton";
 
-async function getData(): Promise<FutterDaten[]> {
-  // Fetch data from your API here.
-  return [
-    {
-        Schlag_ID: 94,
-        Schlag_Name: "Am Aussiedlerhof",
-        Vorname: "Friedrich",
-        Name: "Ebert",
-        Größe: 2.86,
-        Ertrag: 144.14,
-        Feuchtmasse: 50.40,
-        TS_Gehlat: 39.48,
-        Trockenmasse: 569.06,
-        Trockenmasse_pro_ha: 198.97,
-        Sorte: "Mais",
-    },
-    // ...
-  ]
+// API-Aufruf zum Abrufen der Waagedaten
+async function fetchWaageDaten(): Promise<FutterDaten[]> {
+  const response = await fetch('/api/getSchlagID');
+  if (!response.ok) {
+    throw new Error('Netzwerk-Antwort war nicht ok');
+  }
+  return response.json();
 }
- 
 
 export default function FutterPage() {
   const [data, setData] = useState<FutterDaten[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getData().then((result) => {
+  // Funktion zum Laden/Aktualisieren der Daten
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const result = await fetchWaageDaten();
       setData(result);
+      setError(null);
+    } catch (err) {
+      setError("Die Daten konnten nicht geladen werden.");
+      console.error("Fetch Error:", err);
+    } finally {
       setLoading(false);
-    });
+    }
   }, []);
 
-  if (loading) {
-    return <div className="p-6">Lade Waagedaten...</div>;
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  if (loading && data.length === 0) {
+    return <div className="p-6 text-center">Lade Waagedaten...</div>;
   }
 
   return (
@@ -46,15 +47,20 @@ export default function FutterPage() {
       <header className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">WaageDaten</h1>
-          <p className="text-muted-foreground text-sm">Verwalten Sie Ihre Schläge und exportieren Sie Berichte.</p>
         </div>
         
-        {/* Buttons auf der rechten Seite gruppiert */}
         <div className="flex items-center gap-3">
+          {/* Der Excel-Button triggert deinen API-Export-Endpunkt */}
           <ExportExcelButton />
           <ModeToggle />
         </div>
       </header>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
 
       <div className="space-y-8">
         {/* Tabellen Bereich */}
@@ -64,7 +70,7 @@ export default function FutterPage() {
             data={data} 
             filterFields={[
               {key: "Schlag_ID", label: "Schlag_ID"},
-              {key: "Name", label: "Name"},
+              {key: "Schlag_Name", label: "Schlag_Name"},
             ]}
           />
         </section>
@@ -72,8 +78,10 @@ export default function FutterPage() {
         {/* Unterer Bereich: Formular links */}
         <section className="flex justify-start items-start">
           <div className="w-full max-w-md">
-             {/* ManageSchlagTSCard wird hier linksbündig gerendert */}
-            <ManageTSGehalt/>
+            {/* Wir übergeben loadData als Callback, damit das Formular 
+              die Tabelle nach dem Speichern aktualisieren kann 
+            */}
+            <ManageTSGehalt onUpdateSuccess={loadData} />
           </div>
         </section>
       </div>

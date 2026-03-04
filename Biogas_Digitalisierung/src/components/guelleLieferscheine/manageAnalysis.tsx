@@ -56,7 +56,7 @@ export function ManageAnalysis() {
   // 1. Analysen laden
   const fetchAnalysen = async () => {
     try {
-      const res = await fetch('/api/getAnalyses'); // Erstelle diesen Endpoint im Backend
+      const res = await fetch('/api/getAnalysis'); // Erstelle diesen Endpoint im Backend
       const data = await res.json();
       setAnalysenListe(data);
     } catch (err) {

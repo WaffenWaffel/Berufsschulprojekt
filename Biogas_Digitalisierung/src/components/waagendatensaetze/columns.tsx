@@ -1,27 +1,30 @@
-// "use client"
+"use client"
 
 import type { ColumnDef } from "@tanstack/react-table"
 
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
-
 export type WaageDaten = {
     Ws_Nr: number;
-    Datum: String;
-    Uhrzeit: String;
-    Kennzeichen1: String;
-    Kennzeichen2: String;
-    Netto_Gewicht: Number;
-    Sorte: String;
-    Erzeuger_Name: String;
-    Schlag_ID: Number;
-    Schlag_Name: String;
+    Datum: string;
+    Uhrzeit: string;
+    Kennzeichen1: string;
+    Kennzeichen2: string;
+    Netto_Gewicht: number;
+    Sorte: string;
+    Erzeuger_Name: string;
+    Schlag_ID: number;
+    Schlag_Name: string;
 }
 
 export const columns: ColumnDef<WaageDaten>[] = [
   {
-    accessorKey: "Ws_Nr",
-    header: "Ws_Nr",
+    // Die Ws_Nr sicher in einen String umwandeln
+    accessorFn: (row) => {
+      return row && row.Ws_Nr !== undefined && row.Ws_Nr !== null 
+        ? row.Ws_Nr.toString() 
+        : ""; 
+    },
+    id: "Ws_Nr",
+    header: "WS-Nr.",
   },
   {
     accessorKey: "Datum",
@@ -33,15 +36,20 @@ export const columns: ColumnDef<WaageDaten>[] = [
   },
   {
     accessorKey: "Kennzeichen1",
-    header: "Kennzeichen1",
+    header: "Kennzeichen 1",
   },
   {
     accessorKey: "Kennzeichen2",
-    header: "Kennzeichen2",
+    header: "Kennzeichen 2",
   },
   {
     accessorKey: "Netto_Gewicht",
-    header: "Netto_Gewicht",
+    header: "Netto (t)",
+    cell: ({ row }) => {
+      const value = row.getValue("Netto_Gewicht");
+      const num = parseFloat(String(value));
+      return isNaN(num) ? "0.00" : num.toFixed(2);
+    }
   },
   {
     accessorKey: "Sorte",
@@ -49,14 +57,20 @@ export const columns: ColumnDef<WaageDaten>[] = [
   },
   {
     accessorKey: "Erzeuger_Name",
-    header: "Erzeuger_Name",
+    header: "Erzeuger",
   },
   {
-    accessorKey: "Schlag_ID",
-    header: "Schlag_ID",
+    // Auch hier: Schlag_ID sicher abfragen
+    accessorFn: (row) => {
+      return row && row.Schlag_ID !== undefined && row.Schlag_ID !== null 
+        ? row.Schlag_ID.toString() 
+        : "";
+    },
+    id: "Schlag_ID",
+    header: "Schlag ID",
   },
   {
     accessorKey: "Schlag_Name",
-    header: "Schlag_Name",
+    header: "Schlag Name",
   },
 ]

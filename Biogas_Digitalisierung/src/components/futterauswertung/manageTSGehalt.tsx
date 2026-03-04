@@ -30,7 +30,11 @@ import { Check, ChevronsUpDown, Save, RefreshCw, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { FutterDaten } from "./columns"
 
-export function ManageTSGehalt() {
+interface ManageTSGehaltProps {
+  onUpdateSuccess?: () => void; // Optionaler Callback, wenn das Update erfolgreich war
+}
+
+export function ManageTSGehalt({ onUpdateSuccess }: ManageTSGehaltProps) {
   const [comboOpen, setComboOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   
@@ -38,7 +42,6 @@ export function ManageTSGehalt() {
   const [selectedSchlag, setSelectedSchlag] = useState<FutterDaten | null>(null);
   const [tsGehalt, setTsGehalt] = useState("");
 
-  // 1. Daten beim Mounten laden
   useEffect(() => {
     const fetchSchlaege = async () => {
       try {
@@ -52,7 +55,6 @@ export function ManageTSGehalt() {
     fetchSchlaege();
   }, []);
 
-  // 2. Auswahl-Logik
   const handleSelect = (schlag: FutterDaten | null) => {
     if (schlag) {
       setSelectedSchlag(schlag);
@@ -64,7 +66,6 @@ export function ManageTSGehalt() {
     setComboOpen(false);
   };
 
-  // 3. Speichern
   const handleSave = async () => {
     if (!selectedSchlag) return;
     setLoading(true);
@@ -80,12 +81,18 @@ export function ManageTSGehalt() {
 
       if (!response.ok) throw new Error("Fehler beim Speichern");
       
-      // Optional: Liste nach Speichern neu laden, um lokale Daten aktuell zu halten
+      // Liste lokal aktualisieren
       const res = await fetch('/api/getSchlagID');
       const updatedData = await res.json();
       setSchlaegeListe(updatedData);
       
       alert("Erfolgreich aktualisiert!");
+
+      // 3. WICHTIG: Hier rufen wir den Callback auf, um die Tabelle in FutterPage zu aktualisieren
+      if (onUpdateSuccess) {
+        onUpdateSuccess();
+      }
+
     } catch (error) {
       console.error(error);
     } finally {

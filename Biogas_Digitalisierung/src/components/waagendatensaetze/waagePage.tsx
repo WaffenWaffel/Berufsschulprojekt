@@ -1,103 +1,80 @@
 import { ModeToggle } from "../mode-toggle";
 import { columns, type WaageDaten } from "./columns"
 import { DataTable } from "../dataTable";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
-async function getData(): Promise<WaageDaten[]> {
-  // Fetch data from your API here.
-  return [
-    {
-      Ws_Nr: 1,
-      Kennzeichen1: "DON DO 315",
-      Kennzeichen2: "WAGNER MULDE",
-      Netto_Gewicht: 14.04,
-      Datum: "17.9.2025",
-      Uhrzeit: "07:42",
-      Sorte: "Silomais",
-      Erzeuger_Name: "Doppelbauer Siegfried",
-      Schlag_ID: 53,
-      Schlag_Name: "Goldacker am Bullenstall"
-    },
-    {
-      Ws_Nr: 2,
-      Kennzeichen1: "DON DO 315",
-      Kennzeichen2: "WAGNER MULDE",
-      Netto_Gewicht: 14.04,
-      Datum: "17.9.2025",
-      Uhrzeit: "07:42",
-      Sorte: "Silomais",
-      Erzeuger_Name: "Doppelbauer Siegfried",
-      Schlag_ID: 53,
-      Schlag_Name: "Goldacker am Bullenstall"
-    },
-    {
-      Ws_Nr: 3,
-      Kennzeichen1: "DON DO 315",
-      Kennzeichen2: "WAGNER MULDE",
-      Netto_Gewicht: 14.04,
-      Datum: "17.9.2025",
-      Uhrzeit: "07:42",
-      Sorte: "Silomais",
-      Erzeuger_Name: "Doppelbauer Siegfried",
-      Schlag_ID: 53,
-      Schlag_Name: "Goldacker am Bullenstall"
-    },
-    {
-      Ws_Nr: 4,
-      Kennzeichen1: "DON DO 315",
-      Kennzeichen2: "WAGNER MULDE",
-      Netto_Gewicht: 14.04,
-      Datum: "17.9.2025",
-      Uhrzeit: "07:42",
-      Sorte: "Weizen",
-      Erzeuger_Name: "Doppelbauer Siegfried",
-      Schlag_ID: 53,
-      Schlag_Name: "Goldacker am Bullenstall"
-    },
-    // ...
-  ]
+// API-Aufruf zum Abrufen der Waagedaten vom Backend
+async function fetchWaageDaten(): Promise<WaageDaten[]> {
+  // Wir ändern den Endpunkt auf /api/getWaageDaten
+  const response = await fetch('/api/getWaageDaten'); 
+  if (!response.ok) {
+    throw new Error('Fehler beim Laden der Waagedaten');
+  }
+  return response.json();
 }
-
 
 export default function WaagePage() {
   const [data, setData] = useState<WaageDaten[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getData().then((result) => {
+  // Funktion zum Laden der Daten (memoisiert mit useCallback)
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const result = await fetchWaageDaten();
       setData(result);
+      setError(null);
+    } catch (err) {
+      setError("Verbindung zum Server fehlgeschlagen. Läuft das Backend auf Port 3001?");
+      console.error("Fetch Error:", err);
+    } finally {
       setLoading(false);
-    });
+    }
   }, []);
 
-  if (loading) {
-    return <div className="p-6">Lade Waagedaten...</div>;
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  if (loading && data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-lg animate-pulse">Lade Waagedaten...</div>
+      </div>
+    );
   }
 
-    return(
-        <main className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-          <header className="flex justify-between items-center mb-8">
-            <h1 className="text-2xl font-bold">WaageDaten</h1>
-            <ModeToggle />
-          </header>
+  return (
+    <main className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+      <header className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">WaageDaten</h1>
+          <p className="text-muted-foreground text-sm">Übersicht aller gewogenen Lieferungen aus der CSV.</p>
+        </div>
+        <ModeToggle />
+      </header>
 
-          {/* <div className="grid grid-cols-1 lg:grid-cols-4 gap-6"> */}
-          <div>
-            {/* Linke Spalte: Tabelle (nimmt 3/4 des Platzes ein) */}
-            <div className="lg:col-span-3">
-              {/* <Card className="p-4">
-                <h2 className="text-lg font-semibold mb-4">Datensätze</h2>
-                <div className="container mx-auto py-10"> */}
-                  <DataTable columns={columns} data={data} filterFields={[
-                    {key: "Kennzeichen1", label: "Kennzeichen1"},
-                    {key: "Datum", label: "Datum"},
-                    {key: "Sorte", label: "Sorte"},
-                    {key: "Schlag_ID", label: "Schlag_ID"},
-                    ]}/>
-                {/* </div>
-              </Card> */}
-            </div>
-          </div>
-        </main>
-    )
+      {error && (
+        <div className="bg-destructive/15 border border-destructive text-destructive px-4 py-3 rounded-md mb-6">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-6">
+        <div className="w-full">
+          <DataTable 
+            columns={columns} 
+            data={data} 
+            filterFields={[
+              { key: "Kennzeichen1", label: "Kennzeichen" },
+              { key: "Datum", label: "Datum" },
+              { key: "Sorte", label: "Sorte" },
+              { key: "Schlag_ID", label: "Schlag ID" },
+            ]}
+          />
+        </div>
+      </div>
+    </main>
+  );
 }
