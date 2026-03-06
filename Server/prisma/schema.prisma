@@ -68,19 +68,34 @@ model Waegung {
   createdAt       DateTime @default(now())
 }
 
+
 // 5. Tabelle: GülleKunden (Voll eigenständig)
 model GuelleKunden {
-  id        Int      @id @default(autoincrement())
-  kundenNr  Int      @unique 
+  id        Int             @id @default(autoincrement())
+  kundenNr  Int             @unique 
   name      String
   vorname   String
   plz       Int
   wohnort   String
   strasse   String
   hNr       String
+  // Relation: Ein Kunde kann viele Abgabedatensätze haben
+  abgaben   GuelleAbgabe[] 
 }
 
-// 6. Tabelle: Analyse (Voll eigenständig)
+// 6. Tabelle: GülleAbgabe (Verknüpft mit GülleKunden)
+model GuelleAbgabe {
+  id             Int          @id @default(autoincrement())
+  datum          DateTime     @default(now())
+  menge          Float        // Menge in m³ oder Tonnen
+  bemerkung      String?      // Optionales Feld für Notizen
+  
+  // Verknüpfung zum Kunden
+  kunde          GuelleKunden @relation(fields: [guelleKundeId], references: [id])
+  guelleKundeId  Int
+}
+
+// 7. Tabelle: Analyse (Voll eigenständig)
 model Analyse {
   id                 Int      @id @default(autoincrement())
   stickstoff         Float    
