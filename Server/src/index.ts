@@ -1,9 +1,20 @@
 import express, { Request, Response } from 'express';
 import { generateDeliveryNotePdf } from './delivery_service';
 import { generateExcel } from './yield_service';
-// import { PrismaClient } from '@prisma/client'; // Auskommentiert für Testzwecke
+import { PrismaClient } from '@prisma/client';
+import { Pool } from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
+import 'dotenv/config'; // Lädt die DATABASE_URL aus deiner .env
 
-// const prisma = new PrismaClient();
+// 2. Verbindungspool über das Standard-Node-Modul 'pg' erstellen
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// 3. Den Prisma-PostgreSQL-Adapter mit dem Pool füttern
+const adapter = new PrismaPg(pool);
+
+// 4. Den Adapter an den PrismaClient übergeben (Prisma 7 Standard!)
+const prisma = new PrismaClient({ adapter });
+
 const app = express();
 const PORT = 3001;
 
@@ -12,124 +23,328 @@ app.use(express.json());
 // ==========================================
 // 1. GUELLE-DATENSÄTZE (Bewegungsdaten)
 // ==========================================
-app.get('/api/getGuelleDaten', (req: Request, res: Response) => {
-    // BEISPIELDATEN
-    res.json([
-        { KundenNr: 1, Kunde: "Nass", Menge: 500, Datum: "16.02.2025" },
-        { KundenNr: 2, Kunde: "Albrecht", Menge: 300, Datum: "16.02.2025" }
-    ]);
+// Alle Gülle-Abgaben abrufen (inklusive Kundennamen aus der Relation)
+app.get('/api/getGuelleDaten', async (req: Request, res: Response) => {
+    try {
+        const abgaben = await prisma.guelleAbgabe.findMany({
+            include: {
+                kunde: true // Holt die Kundendaten direkt mit
+            },
+            orderBy: {
+                datum: 'desc'
+            }
+        });
+
+        // Mapping auf die vom Frontend erwartete Struktur
+        const formatiert = abgaben.map(a => ({
+            id: a.id,
+            KundenNr: a.kunde.kundenNr,
+            Kunde: `${a.kunde.name}, ${a.kunde.vorname}`,
+            Menge: a.menge,
+            Datum: a.datum.toISOString().split('T')[0], // YYYY-MM-DD
+            Bemerkung: a.bemerkung || ""
+        }));
+
+        res.json(formatiert);
+    } catch (error) {
+        console.error("Fehler beim Abrufen der Gülledaten:", error);
+        res.status(500).json({ error: "Interner Serverfehler" });
+    }
 });
 
-app.post('/api/newRecord', (req: Request, res: Response) => {
-    const neuerGuelleDatensatz = req.body;
-    console.log("Neuer Gülle-Datensatz empfangen:", neuerGuelleDatensatz);
-    res.status(201).json({ message: "Datensatz empfangen", eintrag: neuerGuelleDatensatz });
+// Neue Gülle-Abgabe eintragen
+app.post('/api/newRecord', async (req: Request, res: Response) => {
+    try {
+        const data = req.body; // Erwartet: { KundenNr: number, Menge: number, Datum: string, Bemerkung?: string }
+
+        // 1. Da guelleKundeId die interne ID benötigt (nicht kundenNr), suchen wir zuerst den Kunden
+        const kunde = await prisma.guelleKunden.findUnique({
+            where: { kundenNr: Number(data.KundenNr) }
+        });
+
+        if (!kunde) {
+            return res.status(404).json({ error: `Kunde mit der Kundennummer ${data.KundenNr} wurde nicht gefunden.` });
+        }
+
+        // 2. Abgabe in die Datenbank schreiben
+        const neueAbgabe = await prisma.guelleAbgabe.create({
+            data: {
+                menge: Number(data.Menge),
+                datum: data.Datum ? new Date(data.Datum) : new Date(),
+                bemerkung: data.Bemerkung || null,
+                guelleKundeId: kunde.id // Die verknüpfte interne ID
+            }
+        });
+
+        res.status(201).json({ message: "Datensatz erfolgreich gespeichert", eintrag: neueAbgabe });
+    } catch (error) {
+        console.error("Fehler beim Speichern des Gülledatensatzes:", error);
+        res.status(500).json({ error: "Fehler beim Speichern in der Datenbank." });
+    }
 });
 
-// ==========================================
-// 2. GUELLE-KUNDEN (Stammdaten)
-// ==========================================
-app.get('/api/getCustomer', (req: Request, res: Response) => {
-    // BEISPIELDATEN
-    res.json([
-        { KundenNr: 1, Name: "Nass", Vorname: "Roland", PLZ: 86733, Wohnort: "Alerheim", Straße: "Dorfstraße", HNr: "8" },
-        { KundenNr: 2, Name: "Albrecht", Vorname: "Wolfgang", PLZ: 86733, Wohnort: "Möttingen", Straße: "Hauptstr.", HNr: "12" }
-    ]);
+
+// =========================================================================
+// 2. KUNDEN-STAMMDATEN (GuelleKunden)
+// =========================================================================
+
+// Alle Kunden für das Dropdown / die Liste laden
+app.get('/api/getCustomer', async (req: Request, res: Response) => {
+    try {
+        const kunden = await prisma.guelleKunden.findMany({
+            orderBy: { name: 'asc' }
+        });
+
+        // Konvertierung von DB-camelCase zu Frontend-PascalCase
+        const formatiert = kunden.map(k => ({
+            KundenNr: k.kundenNr,
+            Name: k.name,
+            Vorname: k.vorname,
+            PLZ: k.plz,
+            Wohnort: k.wohnort,
+            Straße: k.strasse,
+            HNr: k.hNr
+        }));
+
+        res.json(formatiert);
+    } catch (error) {
+        console.error("Fehler beim Laden der Kunden:", error);
+        res.status(500).json({ error: "Kunden konnten nicht geladen werden." });
+    }
 });
 
+// Neuen Kunden anlegen
 app.post('/api/newCustomer', async (req: Request, res: Response) => {
-    const data = req.body;
-    /* DB-CODE:
-    const neuerKunde = await prisma.guelleKunden.create({ data: {
-        kundenNr: Number(data.KundenNr),
-        name: data.Name,
-        vorname: data.Vorname,
-        plz: Number(data.PLZ),
-        wohnort: data.Wohnort,
-        strasse: data.Straße,
-        hNr: data.HNr
-    }}); */
-    res.status(201).json({ message: "Kunde empfangen", eintrag: data });
+    try {
+        const data = req.body;
+
+        const neuerKunde = await prisma.guelleKunden.create({
+            data: {
+                kundenNr: Number(data.KundenNr),
+                name: data.Name,
+                vorname: data.Vorname,
+                plz: Number(data.PLZ),
+                wohnort: data.Wohnort,
+                strasse: data.Straße,
+                hNr: data.HNr
+            }
+        });
+
+        res.status(201).json({ message: "Kunde erfolgreich angelegt", eintrag: neuerKunde });
+    } catch (error: any) {
+        console.error("Fehler beim Anlegen des Kunden:", error);
+        if (error.code === 'P2002') {
+            return res.status(400).json({ error: "Diese Kundennummer existiert bereits!" });
+        }
+        res.status(500).json({ error: "Kunde konnte nicht gespeichert werden." });
+    }
 });
 
-app.put('/api/updateCustomer/:id', async (req, res) => {
-    const { id } = req.params;
-    const data = req.body;
-    /* DB-CODE:
-    const updated = await prisma.guelleKunden.update({
-        where: { kundenNr: Number(id) },
-        data: { name: data.Name, ... }
-    }); */
-    console.log(`Update Kunde ${id}`);
-    res.json({ success: true, updated: data });
+// Bestehenden Kunden aktualisieren (über die kundenNr aus den Params)
+app.put('/api/updateCustomer/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params; // Das ist die kundenNr aus der URL
+        const data = req.body;
+
+        const updatedKunde = await prisma.guelleKunden.update({
+            where: { kundenNr: Number(id) },
+            data: {
+                name: data.Name,
+                vorname: data.Vorname,
+                plz: Number(data.PLZ),
+                wohnort: data.Wohnort,
+                strasse: data.Straße,
+                hNr: data.HNr
+            }
+        });
+
+        res.json({ success: true, updated: updatedKunde });
+    } catch (error) {
+        console.error(`Fehler beim Update des Kunden ${req.params.id}:`, error);
+        res.status(500).json({ error: "Fehler beim Aktualisieren des Kunden." });
+    }
 });
 
-app.delete('/api/deleteCustomer/:id', async (req, res) => {
-    const { id } = req.params;
-    /* DB-CODE:
-    await prisma.guelleKunden.delete({ where: { kundenNr: Number(id) } }); */
-    res.json({ message: "Kunde erfolgreich gelöscht" });
+// Kunde löschen
+app.delete('/api/deleteCustomer/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params; // kundenNr
+
+        // Da Abgaben an der ID hängen, müssen wir erst den Kunden finden
+        const kunde = await prisma.guelleKunden.findUnique({
+            where: { kundenNr: Number(id) }
+        });
+
+        if (!kunde) {
+            return res.status(404).json({ error: "Kunde nicht gefunden" });
+        }
+
+        // Transaktion: Zuerst alle Abgaben dieses Kunden löschen, dann den Kunden selbst
+        await prisma.$transaction([
+            prisma.guelleAbgabe.deleteMany({ where: { guelleKundeId: kunde.id } }),
+            prisma.guelleKunden.delete({ where: { id: kunde.id } })
+        ]);
+
+        res.json({ message: "Kunde und alle zugehörigen Abgaben erfolgreich gelöscht" });
+    } catch (error) {
+        console.error("Fehler beim Löschen des Kunden:", error);
+        res.status(500).json({ error: "Fehler beim Löschen des Kunden." });
+    }
 });
 
-// ==========================================
-// 3. ANALYSEN (Eigenständig)
-// ==========================================
-app.get('/api/getAnalysis', (req: Request, res: Response) => {
-    // BEISPIELDATEN
-    res.json([
-        { id: 1, Stickstoff: 4.5, Amoniumstickstoff: 2.1, Phosphat: 1.8, Kalium: 5.2, Datum: "2026-02-24" },
-        { id: 2, Stickstoff: 4.8, Amoniumstickstoff: 2.3, Phosphat: 2.0, Kalium: 5.5, Datum: "2026-03-01" }
-    ]);
+
+// =========================================================================
+// 3. ANALYSEN (Analyse - Eigenständig)
+// =========================================================================
+
+// Alle Analysen abrufen
+app.get('/api/getAnalysis', async (req: Request, res: Response) => {
+    try {
+        const analysen = await prisma.analyse.findMany({
+            orderBy: { datum: 'desc' }
+        });
+
+        // Mapping für dein Frontend (PascalCase)
+        const formatiert = analysen.map(a => ({
+            id: a.id,
+            Stickstoff: a.stickstoff,
+            Amoniumstickstoff: a.amoniumstickstoff,
+            Phosphat: a.phosphat,
+            Kalium: a.kalium,
+            Datum: a.datum.toISOString().split('T')[0]
+        }));
+
+        res.json(formatiert);
+    } catch (error) {
+        console.error("Fehler beim Laden der Analysen:", error);
+        res.status(500).json({ error: "Analysen konnten nicht geladen werden." });
+    }
 });
 
+// Neue Analyse speichern
 app.post('/api/newAnalysis', async (req: Request, res: Response) => {
-    const data = req.body;
-    /* DB-CODE:
-    const neueAnalyse = await prisma.analyse.create({ data: {
-        stickstoff: Number(data.Stickstoff),
-        amoniumstickstoff: Number(data.Amoniumstickstoff),
-        ... datum: new Date(data.Datum)
-    }}); */
-    res.status(201).json({ message: "Analyse empfangen", eintrag: data });
+    try {
+        const data = req.body;
+
+        const neueAnalyse = await prisma.analyse.create({
+            data: {
+                stickstoff: Number(data.Stickstoff),
+                amoniumstickstoff: Number(data.Amoniumstickstoff),
+                phosphat: Number(data.Phosphat),
+                kalium: Number(data.Kalium),
+                datum: data.Datum ? new Date(data.Datum) : new Date()
+            }
+        });
+
+        res.status(201).json({ message: "Analyse erfolgreich gespeichert", eintrag: neueAnalyse });
+    } catch (error) {
+        console.error("Fehler beim Erstellen der Analyse:", error);
+        res.status(500).json({ error: "Analyse konnte nicht erstellt werden." });
+    }
 });
 
-app.put('/api/updateAnalysis/:id', async (req, res) => {
-    const { id } = req.params;
-    const data = req.body;
-    /* DB-CODE:
-    const updated = await prisma.analyse.update({
-        where: { id: Number(id) },
-        data: { stickstoff: Number(data.Stickstoff), ... }
-    }); */
-    res.json({ message: "Analyse aktualisiert" });
+// Analyse aktualisieren
+app.put('/api/updateAnalysis/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+
+        const updatedAnalyse = await prisma.analyse.update({
+            where: { id: Number(id) },
+            data: {
+                stickstoff: Number(data.Stickstoff),
+                amoniumstickstoff: Number(data.Amoniumstickstoff),
+                phosphat: Number(data.Phosphat),
+                kalium: Number(data.Kalium),
+                datum: data.Datum ? new Date(data.Datum) : new Date()
+            }
+        });
+
+        res.json({ message: "Analyse erfolgreich aktualisiert", updated: updatedAnalyse });
+    } catch (error) {
+        console.error(`Fehler beim Update der Analyse ${req.params.id}:`, error);
+        res.status(500).json({ error: "Fehler beim Aktualisieren der Analyse." });
+    }
 });
 
-app.delete('/api/deleteAnalysis/:id', async (req, res) => {
-    const { id } = req.params;
-    /* DB-CODE:
-    await prisma.analyse.delete({ where: { id: Number(id) } }); */
-    res.json({ message: "Analyse gelöscht" });
-});
+// Analyse löschen
+app.delete('/api/deleteAnalysis/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        await prisma.analyse.delete({
+            where: { id: Number(id) }
+        });
+
+        res.json({ message: "Analyse erfolgreich gelöscht" });
+    } catch (error) {
+        console.error("Fehler beim Löschen der Analyse:", error);
+        res.status(500).json({ error: "Fehler beim Löschen der Analyse." });
+    }
+}); 
 
 // ==========================================
 // 4. LIEFERSCHEIN (PDF)
 // ==========================================
 app.post('/api/newDelivery', async (req: Request, res: Response) => {
     try {
-        const databaseData = { Name: "Nass", Vorname: "Roland", PLZ: "86733", Wohnort: "Alerheim", Straße: "Dorfstraße", HNr: "8" };
+        // Das Frontend schickt uns z.B. { KundenNr: 1 }
+        const { KundenNr } = req.body;
+
+        if (!KundenNr) {
+            return res.status(400).json({ error: "KundenNr fehlt im Request" });
+        }
+
+        // 1. Echten Kunden aus der DB holen
+        const kunde = await prisma.guelleKunden.findUnique({
+            where: { kundenNr: Number(KundenNr) }
+        });
+
+        if (!kunde) {
+            return res.status(404).json({ error: "Kunde nicht gefunden" });
+        }
+
+        // 2. Abgaben des Kunden aus der DB holen
+        const abgaben = await prisma.guelleAbgabe.findMany({
+            where: { guelleKundeId: kunde.id },
+            orderBy: { datum: 'asc' }
+        });
+
+        // 3. Neueste Analyse aus der DB holen
+        const neuesteAnalyse = await prisma.analyse.findFirst({
+            orderBy: { datum: 'desc' }
+        });
+
+        // 4. Datenstruktur für Puppeteer exakt so zusammenbauen, wie das PDF es erwartet
         const customerData = {
-            customerName: databaseData.Name + " " + databaseData.Vorname,
-            customerAddress: `${databaseData.Straße} ${databaseData.HNr}, ${databaseData.PLZ} ${databaseData.Wohnort}`,
-            items: [{ menge: 125, datum: "27.02.26" }],
-            analysis: [{ datum: "27.02.26", gesamtStickstoff: 4.6, amoniumStickstoff: 2.8, phosphat: 2.35, kalium: 6.68 }]
+            customerName: `${kunde.vorname} ${kunde.name}`,
+            customerAddress: `${kunde.strasse} ${kunde.hNr}, ${kunde.plz} ${kunde.wohnort}`,
+            items: abgaben.map(a => ({
+                menge: a.menge,
+                // Datum schön formatieren (z.B. "27.02.2026")
+                datum: new Date(a.datum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            })),
+            analysis: neuesteAnalyse ? [{
+                datum: new Date(neuesteAnalyse.datum).toLocaleDateString('de-DE'),
+                gesamtStickstoff: neuesteAnalyse.stickstoff, // DB-Feld: stickstoff
+                amoniumStickstoff: neuesteAnalyse.amoniumstickstoff,
+                phosphat: neuesteAnalyse.phosphat,
+                kalium: neuesteAnalyse.kalium
+            }] : [] // Falls noch keine Analyse in der DB existiert
         };
 
+        // 5. PDF generieren
         const pdfBuffer = await generateDeliveryNotePdf(customerData);
+
+        // 6. PDF als Datei-Stream zurück an das Frontend senden
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'attachment; filename=lieferschein.pdf');
+        // Dateiname dynamisch machen (z.B. Lieferschein_Nass.pdf)
+        res.setHeader('Content-Disposition', `attachment; filename=Lieferschein_${kunde.name.replace(/\s/g, '_')}.pdf`);
         res.send(pdfBuffer);
+
     } catch (error) {
-        res.status(500).send('Fehler bei der PDF-Erstellung');
+        console.error('Fehler bei der PDF-Erstellung:', error);
+        res.status(500).send('Fehler bei der internen PDF-Erstellung');
     }
 });
 

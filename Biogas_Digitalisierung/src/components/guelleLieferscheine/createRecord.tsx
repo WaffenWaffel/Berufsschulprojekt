@@ -36,7 +36,13 @@ import {
 
 import type { GuelleKunden } from "./columns"
 
-export function GuelleInput() {
+// NEU: Interface für die Props
+interface GuelleInputProps {
+  refreshKey?: number;
+  onSuccess?: () => void;
+}
+
+export function GuelleInput({ refreshKey = 0, onSuccess }: GuelleInputProps) {
   const [kunden, setKunden] = useState<GuelleKunden[]>([]);
   const [selectedKunde, setSelectedKunde] = useState<GuelleKunden | null>(null);
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -44,12 +50,14 @@ export function GuelleInput() {
   const [loading, setLoading] = useState(false);
   const [menge, setMenge] = useState("");
 
+  // NEU: refreshKey in das Dependency Array eingefügt!
+  // Sobald sich refreshKey ändert (z.B. neuer Kunde angelegt), wird diese Funktion erneut ausgeführt.
   useEffect(() => {
     fetch('/api/getCustomer')
       .then(res => res.json())
       .then(data => setKunden(data))
       .catch(err => console.error("Fehler beim Laden der Kunden:", err));
-  }, []);
+  }, [refreshKey]); 
 
   const handleSave = async () => {
     if (!selectedKunde || !menge || !date) {
@@ -61,11 +69,9 @@ export function GuelleInput() {
     try {
       const response = await fetch('/api/newRecord', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          KundenNr: selectedKunde.KundenNr, // ID direkt vom Objekt
+          KundenNr: selectedKunde.KundenNr,
           Menge: Number(menge),
           Datum: format(date, "yyyy-MM-dd"),
         }),
@@ -73,10 +79,13 @@ export function GuelleInput() {
 
       if (!response.ok) throw new Error("Fehler beim Speichern");
       
-      alert("Erfolgreich gespeichert!");
-      // Reset
+      // Reset Felder
       setMenge("");
       setSelectedKunde(null);
+      
+      // NEU: Trigger den Reload in GuellePage für die DataTable
+      if (onSuccess) onSuccess(); 
+      
     } catch (error) {
       console.error("Fehler beim POST:", error);
     } finally {

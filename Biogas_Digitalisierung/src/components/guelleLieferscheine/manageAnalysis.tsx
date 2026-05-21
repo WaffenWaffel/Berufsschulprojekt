@@ -35,7 +35,12 @@ import { format, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
 import type { Analyse } from "./columns"
 
-export function ManageAnalysis() {
+// NEU: Props-Interface
+interface ManageAnalysisProps {
+  onSuccess?: () => void;
+}
+
+export function ManageAnalysis({ onSuccess }: ManageAnalysisProps) {
   const [open, setOpen] = useState(false);
   const [comboOpen, setComboOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -109,6 +114,8 @@ export function ManageAnalysis() {
       if (!response.ok) throw new Error("Fehler beim Speichern");
       setOpen(false);
       handleSelect(null);
+      // NEU: App informieren
+      if (onSuccess) onSuccess();
     } catch (error) {
       console.error(error);
     } finally {
@@ -124,6 +131,8 @@ export function ManageAnalysis() {
       await fetch(`/api/deleteAnalysis/${selectedAnalyse.id}`, { method: 'DELETE' });
       setOpen(false);
       handleSelect(null);
+      // NEU: App informieren
+      if (onSuccess) onSuccess();
     } catch (error) {
       console.error(error);
     } finally {

@@ -42,8 +42,12 @@ interface GuelleKunden {
   Straße: string;
   HNr: string;
 }
+// NEU: Props-Interface
+interface ManageCustomerProps {
+  onSuccess?: () => void;
+}
 
-export function ManageCustomer() {
+export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
   const [open, setOpen] = useState(false);
   const [comboOpen, setComboOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -114,6 +118,10 @@ export function ManageCustomer() {
       
       setOpen(false);
       handleSelect(null); // Reset
+      
+      // NEU: App mitteilen, dass Daten sich geändert haben
+      if (onSuccess) onSuccess();
+
     } catch (error) {
       console.error(error);
     } finally {
@@ -130,6 +138,10 @@ export function ManageCustomer() {
       await fetch(`/api/deleteCustomer/${selectedKunde.KundenNr}`, { method: 'DELETE' });
       setOpen(false);
       handleSelect(null);
+      
+      // NEU: App mitteilen, dass Daten sich geändert haben
+      if (onSuccess) onSuccess();
+      
     } catch (error) {
       console.error(error);
     } finally {
