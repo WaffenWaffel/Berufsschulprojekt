@@ -4,8 +4,8 @@ dist/
 .env
 
 # Vite/Frontend spezifisch
-biogas_digitalisierung/dist/
-biogas_digitalisierung/.env
+Client/dist/
+Client/.env
 
 # Server spezifisch
 server/dist/
