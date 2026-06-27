@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Check, ChevronsUpDown, Trash2, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
 
 // Typ-Definition passend zu deiner DB
 interface GuelleKunden {
@@ -68,7 +69,7 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
 
   // 1. Kunden laden
   const fetchKunden = async () => {
-    const res = await fetch('/api/getCustomer');
+    const res = await fetch(`${API_BASE}/api/getCustomer`);
     const data = await res.json();
     setKundenListe(data);
   };
@@ -101,7 +102,7 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
   const handleSave = async () => {
     setLoading(true);
     const isUpdate = !!selectedKunde;
-    const url = isUpdate ? `/api/updateCustomer/${formData.KundenNr}` : '/api/newCustomer';
+    const url = isUpdate ? `${API_BASE}/api/updateCustomer/${formData.KundenNr}` : `${API_BASE}/api/newCustomer`;
     
     try {
       const response = await fetch(url, {
@@ -135,7 +136,7 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
     
     setLoading(true);
     try {
-      await fetch(`/api/deleteCustomer/${selectedKunde.KundenNr}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/deleteCustomer/${selectedKunde.KundenNr}`, { method: 'DELETE' });
       setOpen(false);
       handleSelect(null);
       

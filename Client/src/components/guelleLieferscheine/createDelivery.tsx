@@ -43,6 +43,8 @@ import { useEffect, useState } from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
 import type { Analysen, GuelleKunden } from "./columns"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
+
 
 // const kunden = ["Albrecht", "Nass"]
 // const analysen = ["Dok1", "Dok2"]
@@ -56,14 +58,14 @@ export function CreateDelivery() {
   // const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch('/api/getCustomer')
+    fetch(`${API_BASE}/api/getCustomer`)
       .then(res => res.json())
       .then(data => setKunden(data))
       .catch(err => console.error("Fehler beim Laden der Kunden:", err));
   }, []);
 
   useEffect(() => {
-    fetch('/api/getAnalysis')
+    fetch(`${API_BASE}/api/getAnalysis`)
       .then(res => res.json())
       .then(data => setAnalysen(data))
       .catch(err => console.error("Fehler beim Laden der Analysen:", err));
@@ -82,7 +84,7 @@ export function CreateDelivery() {
   
     // 3. Abschicken
     try {
-      const response = await fetch('/api/newDelivery', {
+      const response = await fetch(`${API_BASE}/api/newDelivery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

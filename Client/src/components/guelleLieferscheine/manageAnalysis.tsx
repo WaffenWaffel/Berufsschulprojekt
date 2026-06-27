@@ -34,6 +34,7 @@ import { CalendarIcon, Check, ChevronsUpDown, Trash2, PlusCircle } from "lucide-
 import { format, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
 import type { Analyse } from "./columns"
+import { API_BASE } from "@/lib/api"
 
 // NEU: Props-Interface
 interface ManageAnalysisProps {
@@ -61,7 +62,7 @@ export function ManageAnalysis({ onSuccess }: ManageAnalysisProps) {
   // 1. Analysen laden
   const fetchAnalysen = async () => {
     try {
-      const res = await fetch('/api/getAnalysis'); // Erstelle diesen Endpoint im Backend
+      const res = await fetch(`${API_BASE}/api/getAnalysis`); // Erstelle diesen Endpoint im Backend
       const data = await res.json();
       setAnalysenListe(data);
     } catch (err) {
@@ -96,7 +97,7 @@ export function ManageAnalysis({ onSuccess }: ManageAnalysisProps) {
   const handleSave = async () => {
     setLoading(true);
     const isUpdate = !!selectedAnalyse;
-    const url = isUpdate ? `/api/updateAnalysis/${selectedAnalyse.id}` : '/api/newAnalysis';
+    const url = isUpdate ? `${API_BASE}/api/updateAnalysis/${selectedAnalyse.id}` : `${API_BASE}/api/newAnalysis`;
     
     try {
       const response = await fetch(url, {
@@ -128,7 +129,7 @@ export function ManageAnalysis({ onSuccess }: ManageAnalysisProps) {
     if (!selectedAnalyse || !confirm("Analyse wirklich löschen?")) return;
     setLoading(true);
     try {
-      await fetch(`/api/deleteAnalysis/${selectedAnalyse.id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/deleteAnalysis/${selectedAnalyse.id}`, { method: 'DELETE' });
       setOpen(false);
       handleSelect(null);
       // NEU: App informieren

@@ -5,6 +5,8 @@ import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { Calendar as CalendarIcon, Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { API_BASE } from "@/lib/api"
+
 
 import {
   Popover,
@@ -53,7 +55,7 @@ export function GuelleInput({ refreshKey = 0, onSuccess }: GuelleInputProps) {
   // NEU: refreshKey in das Dependency Array eingefügt!
   // Sobald sich refreshKey ändert (z.B. neuer Kunde angelegt), wird diese Funktion erneut ausgeführt.
   useEffect(() => {
-    fetch('/api/getCustomer')
+    fetch(`${API_BASE}/api/getCustomer`)
       .then(res => res.json())
       .then(data => setKunden(data))
       .catch(err => console.error("Fehler beim Laden der Kunden:", err));
@@ -67,7 +69,7 @@ export function GuelleInput({ refreshKey = 0, onSuccess }: GuelleInputProps) {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/newRecord', {
+      const response = await fetch(`${API_BASE}/api/newRecord`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
