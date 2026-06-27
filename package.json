@@ -2,7 +2,9 @@
   "scripts": {
     "dev:client": "cd Client && npm run dev",
     "dev:server": "npm run dev --prefix server",
-    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\""
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "build": "cd Client && npm install && npm run build",
+    "start": "npm run start --prefix server"
   },
   "devDependencies": {
     "@types/node": "^25.3.3",
