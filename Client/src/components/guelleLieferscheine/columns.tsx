@@ -1,76 +1,106 @@
-// "use client"
-
 import type { ColumnDef } from "@tanstack/react-table"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Pencil, Trash2 } from "lucide-react"
+import type { GuelleDaten } from "./types"
 
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
+export type { GuelleDaten, GuelleKunde, Analyse } from "./types"
 
-export type GuelleDaten = {
-    KundenNr: Number;
-    Kunde: String;
-    Menge: Number;
-    Datum: String;
+/** Formatiert YYYY-MM-DD für die Anzeige als TT.MM.JJJJ. */
+function datumAnzeigen(iso: string): string {
+  const [jahr, monat, tag] = iso.split("-")
+  return tag && monat && jahr ? `${tag}.${monat}.${jahr}` : iso
 }
 
-export const columns: ColumnDef<GuelleDaten>[] = [
-  {
-    accessorKey: "KundenNr",
-    header: "KundenNr",
-  },
-  {
-    accessorKey: "Kunde",
-    header: "Kunde",
-  },
-  {
-    accessorKey: "Menge",
-    header: "Menge in m³",
-  },
-  {
-    accessorKey: "Datum",
-    header: "Datum",
-  }
-]
-
-
-export type GuelleKunden = {
-  KundenNr: number;
-  Name: string;
-  Vorname: string;
-  PLZ: number;
-  Wohnort: string;
-  Straße: string;
-  HNr: string;
+interface ColumnOptions {
+  onEdit: (eintrag: GuelleDaten) => void
+  onDelete: (eintrag: GuelleDaten) => void
 }
 
-export type Analysen = {
-  ID: number;
-  Datum: string;
-}
+/**
+ * Spalten der Abgaben-Tabelle. Als Funktion, damit die Aktionsspalte
+ * die Handler der Seite erreichen kann.
+ */
+export function createColumns({ onEdit, onDelete }: ColumnOptions): ColumnDef<GuelleDaten>[] {
+  return [
+    {
+      accessorKey: "KundenNr",
+      header: "KundenNr",
+    },
+    {
+      accessorKey: "Kunde",
+      header: "Kunde",
+    },
+    {
+      accessorKey: "Menge",
+      header: () => <div className="text-right">Menge in m³</div>,
+      cell: ({ row }) => (
+        <div className="text-right tabular-nums">
+          {row.original.Menge.toLocaleString("de-DE", { minimumFractionDigits: 2 })}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "Datum",
+      header: "Datum",
+      cell: ({ row }) => datumAnzeigen(row.original.Datum),
+    },
+    {
+      accessorKey: "Bemerkung",
+      header: "Bemerkung",
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.Bemerkung || "—"}</span>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: ({ row }) =>
+        row.original.Abgerechnet ? (
+          <Badge variant="secondary">LS {row.original.LieferscheinNr}</Badge>
+        ) : (
+          <Badge variant="outline">offen</Badge>
+        ),
+    },
+    {
+      id: "aktionen",
+      header: () => <span className="sr-only">Aktionen</span>,
+      cell: ({ row }) => {
+        const eintrag = row.original
+        // Abgerechnete Abgaben stehen auf einem gedruckten Lieferschein und
+        // dürfen nicht mehr verändert werden - das lehnt auch der Server ab.
+        const gesperrt = eintrag.Abgerechnet
+        const titel = gesperrt
+          ? `Steht auf Lieferschein ${eintrag.LieferscheinNr} und ist nicht mehr änderbar`
+          : undefined
 
-export type Analyse = {
-  id: number;
-  Stickstoff: number;
-  Amoniumstickstoff: number;
-  Phosphat: number;
-  Kalium: number;
-  Datum: string;
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              disabled={gesperrt}
+              title={titel ?? "Bearbeiten"}
+              onClick={() => onEdit(eintrag)}
+            >
+              <Pencil className="h-4 w-4" />
+              <span className="sr-only">Bearbeiten</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive"
+              disabled={gesperrt}
+              title={titel ?? "Löschen"}
+              onClick={() => onDelete(eintrag)}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">Löschen</span>
+            </Button>
+          </div>
+        )
+      },
+    },
+  ]
 }
-
-// export const columns: ColumnDef<KundenNr>[] = [
-// {
-//   accessorKey: "KundenNr",
-//   header: "KundenNr",
-// },
-// {
-//   accessorKey: "Kunde",
-//   header: "Kunde",
-// },
-// {
-//   accessorKey: "Menge",
-//   header: "Menge in m³",
-// },
-// {
-//   accessorKey: "Datum",
-//   header: "Datum",
-// }
-// ]

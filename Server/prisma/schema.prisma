@@ -72,35 +72,68 @@ model Waegung {
 // 5. Tabelle: GülleKunden (Voll eigenständig)
 model GuelleKunden {
   id        Int             @id @default(autoincrement())
-  kundenNr  Int             @unique 
+  kundenNr  Int             @unique
   name      String
   vorname   String
-  plz       Int
+  plz       String   // String, damit führende Nullen erhalten bleiben (z.B. "01067")
   wohnort   String
   strasse   String
   hNr       String
   // Relation: Ein Kunde kann viele Abgabedatensätze haben
-  abgaben   GuelleAbgabe[] 
+  abgaben   GuelleAbgabe[]
+  lieferscheine Lieferschein[]
 }
 
 // 6. Tabelle: GülleAbgabe (Verknüpft mit GülleKunden)
 model GuelleAbgabe {
   id             Int          @id @default(autoincrement())
-  datum          DateTime     @default(now())
+  datum          DateTime     @default(now()) @db.Date // reines Kalenderdatum, keine Uhrzeit
   menge          Float        // Menge in m³ oder Tonnen
   bemerkung      String?      // Optionales Feld für Notizen
-  
+
   // Verknüpfung zum Kunden
   kunde          GuelleKunden @relation(fields: [guelleKundeId], references: [id])
   guelleKundeId  Int
+
+  // Abrechnung: Solange NULL, ist die Abgabe offen und kommt auf den nächsten Lieferschein
+  abgerechnetAm  DateTime?
+  lieferschein   Lieferschein? @relation(fields: [lieferscheinId], references: [id], onDelete: SetNull)
+  lieferscheinId Int?
+
+  @@index([guelleKundeId, abgerechnetAm])
 }
 
 // 7. Tabelle: Analyse (Voll eigenständig)
 model Analyse {
   id                 Int      @id @default(autoincrement())
-  stickstoff         Float    
+  stickstoff         Float
   amoniumstickstoff  Float
   phosphat           Float
   kalium             Float
-  datum              DateTime 
+  datum              DateTime @db.Date
+
+  lieferscheine      LieferscheinAnalyse[]
+}
+
+// 8. Tabelle: Lieferschein (dokumentiert eine Abrechnung)
+model Lieferschein {
+  id             Int          @id @default(autoincrement())
+  nummer         Int          @unique // fortlaufende Lieferschein-Nr. auf dem PDF
+  erstelltAm     DateTime     @default(now())
+
+  kunde          GuelleKunden @relation(fields: [guelleKundeId], references: [id])
+  guelleKundeId  Int
+
+  positionen     GuelleAbgabe[]
+  analysen       LieferscheinAnalyse[]
+}
+
+// 9. Zwischentabelle: Welche Analysen wurden auf welchem Lieferschein abgedruckt
+model LieferscheinAnalyse {
+  lieferschein   Lieferschein @relation(fields: [lieferscheinId], references: [id], onDelete: Cascade)
+  lieferscheinId Int
+  analyse        Analyse      @relation(fields: [analyseId], references: [id], onDelete: Cascade)
+  analyseId      Int
+
+  @@id([lieferscheinId, analyseId])
 }

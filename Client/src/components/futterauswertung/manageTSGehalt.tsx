@@ -119,7 +119,7 @@ export function ManageTSGehalt({ onUpdateSuccess }: ManageTSGehaltProps) {
                 <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+            <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
               <Command>
                 <CommandInput placeholder="Name oder ID..." />
                 <CommandList>

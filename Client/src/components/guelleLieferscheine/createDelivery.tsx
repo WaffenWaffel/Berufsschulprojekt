@@ -1,209 +1,144 @@
-import {
-    Field, FieldLabel,
-  } from "@/components/ui/field"
+import { useState } from "react"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 
 import {
-    Combobox,
-    ComboboxChip,
-    ComboboxChips,
-    ComboboxChipsInput,
-    ComboboxContent,
-    ComboboxEmpty,
-    // ComboboxInput,
-    ComboboxItem,
-    ComboboxList,
-    ComboboxValue,
-  } from "@/components/ui/combobox"
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+} from "@/components/ui/combobox"
 
 import {
-    Card,
-    CardContent,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-    } from "@/components/ui/card"
-
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 import { Button } from "@/components/ui/button"
-import { useEffect, useState } from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
-import type { Analysen, GuelleKunden } from "./columns"
-import { cn } from "@/lib/utils"
-import { API_BASE } from "@/lib/api"
+import { apiDownload, blobHerunterladen } from "@/lib/api"
+import { KundenCombobox } from "./KundenCombobox"
+import { FormMessage } from "./FormMessage"
+import type { Analyse, GuelleKunde } from "./types"
 
+interface CreateDeliveryProps {
+  kunden: GuelleKunde[]
+  analysen: Analyse[]
+  /** Wird nach erfolgreicher Erstellung aufgerufen - die Abgaben gelten dann als abgerechnet. */
+  onSuccess?: () => void
+}
 
-// const kunden = ["Albrecht", "Nass"]
-// const analysen = ["Dok1", "Dok2"]
+/** Formatiert YYYY-MM-DD als TT.MM.JJJJ. */
+function datumAnzeigen(iso: string): string {
+  const [jahr, monat, tag] = iso.split("-")
+  return tag && monat && jahr ? `${tag}.${monat}.${jahr}` : iso
+}
 
-export function CreateDelivery() {
-  const [value, setValue] = useState<Analysen[]>([])
-  const [kunden, setKunden] = useState<GuelleKunden[]>([]);
-  const [analysen, setAnalysen] = useState<Analysen[]>([]);
-  const [selectedKunde, setSelectedKunde] = useState<GuelleKunden | null>(null);
-  const [open, setOpen] = useState(false);
-  // const [loading, setLoading] = useState(false);
+export function CreateDelivery({ kunden, analysen, onSuccess }: CreateDeliveryProps) {
+  const [selectedKunde, setSelectedKunde] = useState<GuelleKunde | null>(null)
+  const [selectedAnalysen, setSelectedAnalysen] = useState<Analyse[]>([])
+  const [loading, setLoading] = useState(false)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [erfolg, setErfolg] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetch(`${API_BASE}/api/getCustomer`)
-      .then(res => res.json())
-      .then(data => setKunden(data))
-      .catch(err => console.error("Fehler beim Laden der Kunden:", err));
-  }, []);
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setFehler(null)
+    setErfolg(null)
 
-  useEffect(() => {
-    fetch(`${API_BASE}/api/getAnalysis`)
-      .then(res => res.json())
-      .then(data => setAnalysen(data))
-      .catch(err => console.error("Fehler beim Laden der Analysen:", err));
-  }, []);
+    if (!selectedKunde) return setFehler("Bitte einen Kunden auswählen.")
 
-  const handleSave = async () => {
-    // 1. IDs aus den ausgewählten Analysen extrahieren
-    // value ist z.B. [{id: 1, datum: "2024-01-01"}, {id: 5, datum: "2024-02-01"}]
-    const analysenIds = value.map((a) => a.ID); // Ergebnis: [1, 5]
-  
-    // 2. Das Objekt für das Backend zusammenbauen
-    const payload = {
-      KundenNr: selectedKunde?.KundenNr, // Von der ersten Combobox
-      Analysen: analysenIds              // Dein Array mit IDs [1, 5, ...]
-    };
-  
-    // 3. Abschicken
+    setLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/api/newDelivery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-  
-        // Einen temporären Link im Browser erstellen und "anklicken"
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "Lieferschein.pdf"; // Dateiname im Browser
-        document.body.appendChild(a);
-        a.click();
-        
-        // Aufräumen
-        a.remove();
-        window.URL.revokeObjectURL(url);
-      }
-    } catch (error) {
-      console.error("Fehler beim Senden:", error);
-    }
-  };
+      const response = await apiDownload("/api/newDelivery", {
+        method: "POST",
+        body: JSON.stringify({
+          KundenNr: selectedKunde.KundenNr,
+          // Leere Auswahl bedeutet: Server nimmt die aktuellste Analyse
+          Analysen: selectedAnalysen.map((a) => a.id),
+        }),
+      })
 
-    return(
-        <Card className="mx-auto w-full max-w-sm" >
+      await blobHerunterladen(response, "Lieferschein.pdf")
+
+      setSelectedAnalysen([])
+      setSelectedKunde(null)
+      setErfolg("Lieferschein erstellt und heruntergeladen.")
+      onSuccess?.()
+    } catch (error) {
+      setFehler(error instanceof Error ? error.message : "Lieferschein konnte nicht erstellt werden.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Card className="mx-auto w-full max-w-sm">
+      <form onSubmit={handleSubmit}>
         <CardHeader>
-            <CardTitle>Lieferschein Erstellen</CardTitle>
+          <CardTitle>Lieferschein erstellen</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Field>
-          <FieldLabel>Kunde</FieldLabel>
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                className="w-full justify-between"
-              >
-                {selectedKunde 
-                  ? `${selectedKunde.Name}, ${selectedKunde.Vorname}` 
-                  : "Kunde wählen..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-              <Command>
-                <CommandInput placeholder="Suche Kunde..." />
-                <CommandList>
-                  <CommandEmpty>Kein Kunde gefunden.</CommandEmpty>
-                  <CommandGroup>
-                    {kunden.map((kunde) => (
-                      <CommandItem
-                        key={kunde.KundenNr}
-                        value={kunde.Name}
-                        onSelect={() => {
-                          setSelectedKunde(kunde)
-                          setOpen(false)
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            selectedKunde?.KundenNr === kunde.KundenNr ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {kunde.Name}, {kunde.Vorname}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+            <FieldLabel htmlFor="lieferscheinKunde">Kunde</FieldLabel>
+            <KundenCombobox
+              id="lieferscheinKunde"
+              kunden={kunden}
+              selected={selectedKunde}
+              onSelect={setSelectedKunde}
+            />
+            <FieldDescription>
+              Es kommen alle noch nicht abgerechneten Abgaben dieses Kunden auf den Schein.
+            </FieldDescription>
           </Field>
+
           <Field>
             <FieldLabel>Analysen</FieldLabel>
-            <Combobox 
-              items={analysen} 
-              multiple 
-              value={value} // 'value' ist hier dein Array von Analyse-Objekten
-              onValueChange={setValue}
+            <Combobox
+              items={analysen}
+              multiple
+              value={selectedAnalysen}
+              onValueChange={setSelectedAnalysen}
             >
               <ComboboxChips>
                 <ComboboxValue>
-                  {value.map((item) => (
-                    // Wir entfernen 'value={item}', da der Chip nur das Datum anzeigen soll
-                    <ComboboxChip key={item.ID}>
-                      {item.Datum}
-                    </ComboboxChip>
+                  {selectedAnalysen.map((item) => (
+                    <ComboboxChip key={item.id}>{datumAnzeigen(item.Datum)}</ComboboxChip>
                   ))}
                 </ComboboxValue>
                 <ComboboxChipsInput placeholder="Analysen hinzufügen" />
               </ComboboxChips>
-              
+
               <ComboboxContent>
                 <ComboboxEmpty>Keine Analysen gefunden.</ComboboxEmpty>
                 <ComboboxList>
-                  {(item: Analysen) => (
-                    // Das Item behält 'value={item}', damit das Objekt beim Klick im State landet
-                    <ComboboxItem key={item.ID} value={item}>
-                      {item.Datum}
+                  {(item: Analyse) => (
+                    <ComboboxItem key={item.id} value={item}>
+                      {datumAnzeigen(item.Datum)}
                     </ComboboxItem>
                   )}
                 </ComboboxList>
               </ComboboxContent>
-            </Combobox> 
+            </Combobox>
+            <FieldDescription>
+              Ohne Auswahl wird die aktuellste Analyse abgedruckt.
+            </FieldDescription>
           </Field>
+
+          <FormMessage fehler={fehler} erfolg={erfolg} />
         </CardContent>
         <CardFooter>
-        <Button className="w-full" onClick={handleSave} 
-        // disabled={loading}
-        >
-          {/* {loading ? "Speichert..." : "Speichern"} */}
-          {"Speichern"}
-        </Button>
+          <Button type="submit" className="w-full" disabled={loading || !selectedKunde}>
+            {loading ? "Erstellt..." : "Lieferschein erstellen"}
+          </Button>
         </CardFooter>
+      </form>
     </Card>
-    )
+  )
 }

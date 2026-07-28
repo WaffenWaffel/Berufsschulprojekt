@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Calendar } from "@/components/ui/calendar"
-import { format } from "date-fns"
-import { Calendar as CalendarIcon, Check, ChevronsUpDown } from "lucide-react"
+import { format, parseISO } from "date-fns"
+import { de } from "date-fns/locale"
+import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { API_BASE } from "@/lib/api"
-
+import { apiFetch } from "@/lib/api"
 
 import {
   Popover,
@@ -14,10 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-import {
-  Field,
-  FieldLabel,
-} from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 
 import {
   Card,
@@ -28,164 +26,262 @@ import {
 } from "@/components/ui/card"
 
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
-import type { GuelleKunden } from "./columns"
+import { KundenCombobox } from "./KundenCombobox"
+import { FormMessage } from "./FormMessage"
+import type { GuelleKunde } from "./types"
 
-// NEU: Interface für die Props
 interface GuelleInputProps {
-  refreshKey?: number;
-  onSuccess?: () => void;
+  kunden: GuelleKunde[]
+  onSuccess?: () => void
 }
 
-export function GuelleInput({ refreshKey = 0, onSuccess }: GuelleInputProps) {
-  const [kunden, setKunden] = useState<GuelleKunden[]>([]);
-  const [selectedKunde, setSelectedKunde] = useState<GuelleKunden | null>(null);
-  const [date, setDate] = useState<Date | undefined>(new Date());
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [menge, setMenge] = useState("");
+/** Formular zum Erfassen einer neuen Gülle-Abgabe. */
+export function GuelleInput({ kunden, onSuccess }: GuelleInputProps) {
+  const [selectedKunde, setSelectedKunde] = useState<GuelleKunde | null>(null)
+  const [date, setDate] = useState<Date | undefined>(new Date())
+  const [menge, setMenge] = useState("")
+  const [bemerkung, setBemerkung] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [erfolg, setErfolg] = useState<string | null>(null)
 
-  // NEU: refreshKey in das Dependency Array eingefügt!
-  // Sobald sich refreshKey ändert (z.B. neuer Kunde angelegt), wird diese Funktion erneut ausgeführt.
-  useEffect(() => {
-    fetch(`${API_BASE}/api/getCustomer`)
-      .then(res => res.json())
-      .then(data => setKunden(data))
-      .catch(err => console.error("Fehler beim Laden der Kunden:", err));
-  }, [refreshKey]); 
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setFehler(null)
+    setErfolg(null)
 
-  const handleSave = async () => {
-    if (!selectedKunde || !menge || !date) {
-      alert("Bitte alle Felder ausfüllen!");
-      return;
+    if (!selectedKunde) return setFehler("Bitte einen Kunden auswählen.")
+    if (!date) return setFehler("Bitte ein Datum auswählen.")
+
+    const mengeZahl = Number(menge)
+    if (!Number.isFinite(mengeZahl) || mengeZahl <= 0) {
+      return setFehler("Die Menge muss größer als 0 sein.")
     }
 
-    setLoading(true);
+    setLoading(true)
     try {
-      const response = await fetch(`${API_BASE}/api/newRecord`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await apiFetch("/api/newRecord", {
+        method: "POST",
         body: JSON.stringify({
           KundenNr: selectedKunde.KundenNr,
-          Menge: Number(menge),
+          Menge: mengeZahl,
           Datum: format(date, "yyyy-MM-dd"),
+          Bemerkung: bemerkung,
         }),
-      });
+      })
 
-      if (!response.ok) throw new Error("Fehler beim Speichern");
-      
-      // Reset Felder
-      setMenge("");
-      setSelectedKunde(null);
-      
-      // NEU: Trigger den Reload in GuellePage für die DataTable
-      if (onSuccess) onSuccess(); 
-      
+      setMenge("")
+      setBemerkung("")
+      setSelectedKunde(null)
+      setErfolg("Abgabe gespeichert.")
+      onSuccess?.()
     } catch (error) {
-      console.error("Fehler beim POST:", error);
+      setFehler(error instanceof Error ? error.message : "Speichern fehlgeschlagen.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
   return (
     <Card className="mx-auto w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>Gülle Menge eingeben</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Field>
-          <FieldLabel htmlFor="guelleMenge">Menge (m³)</FieldLabel>
-          <Input 
-            id="guelleMenge" 
-            type="number" 
-            placeholder="0" 
-            value={menge} 
-            onChange={(e) => setMenge(e.target.value)}
-          />
-        </Field>
-        <Field>
-          <FieldLabel>Kunde</FieldLabel>
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                className="w-full justify-between"
-              >
-                {selectedKunde 
-                  ? `${selectedKunde.Name}, ${selectedKunde.Vorname}` 
-                  : "Kunde wählen..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-              <Command>
-                <CommandInput placeholder="Suche Kunde..." />
-                <CommandList>
-                  <CommandEmpty>Kein Kunde gefunden.</CommandEmpty>
-                  <CommandGroup>
-                    {kunden.map((kunde) => (
-                      <CommandItem
-                        key={kunde.KundenNr}
-                        value={kunde.Name}
-                        onSelect={() => {
-                          setSelectedKunde(kunde)
-                          setOpen(false)
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            selectedKunde?.KundenNr === kunde.KundenNr ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {kunde.Name}, {kunde.Vorname}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </Field>
+      <form onSubmit={handleSubmit}>
+        <CardHeader>
+          <CardTitle>Gülle Menge eingeben</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Field>
+            <FieldLabel htmlFor="guelleMenge">Menge (m³)</FieldLabel>
+            <Input
+              id="guelleMenge"
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder="0"
+              value={menge}
+              onChange={(e) => setMenge(e.target.value)}
+            />
+          </Field>
 
-        {/* Datum Feld */}
-        <Field>
-          <FieldLabel>Datum</FieldLabel>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !date && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date ? format(date, "PPP") : <span>Datum wählen</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar mode="single" selected={date} onSelect={setDate}/>
-            </PopoverContent>
-          </Popover>
-        </Field>
+          <Field>
+            <FieldLabel htmlFor="guelleKunde">Kunde</FieldLabel>
+            <KundenCombobox
+              id="guelleKunde"
+              kunden={kunden}
+              selected={selectedKunde}
+              onSelect={setSelectedKunde}
+            />
+          </Field>
 
-      </CardContent>
-      <CardFooter>
-        <Button className="w-full" onClick={handleSave} disabled={loading}>
-          {loading ? "Speichert..." : "Speichern"}
-        </Button>
-      </CardFooter>
+          <Field>
+            <FieldLabel>Datum</FieldLabel>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "dd.MM.yyyy") : <span>Datum wählen</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={date} onSelect={setDate} locale={de} />
+              </PopoverContent>
+            </Popover>
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor="guelleBemerkung">Bemerkung (optional)</FieldLabel>
+            <Textarea
+              id="guelleBemerkung"
+              rows={2}
+              placeholder="z.B. Fahrer, Fass, Besonderheiten"
+              value={bemerkung}
+              onChange={(e) => setBemerkung(e.target.value)}
+            />
+          </Field>
+
+          <FormMessage fehler={fehler} erfolg={erfolg} />
+        </CardContent>
+        <CardFooter>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Speichert..." : "Speichern"}
+          </Button>
+        </CardFooter>
+      </form>
     </Card>
+  )
+}
+
+interface EditRecordDialogProps {
+  eintrag: { id: number; Menge: number; Datum: string; Bemerkung: string } | null
+  onClose: () => void
+  onSuccess: () => void
+}
+
+/** Dialog zum Bearbeiten einer bereits erfassten, noch offenen Abgabe. */
+export function EditRecordDialog({ eintrag, onClose, onSuccess }: EditRecordDialogProps) {
+  const [menge, setMenge] = useState("")
+  const [date, setDate] = useState<Date | undefined>()
+  const [bemerkung, setBemerkung] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [geladeneId, setGeladeneId] = useState<number | null>(null)
+
+  // Formular mit dem gewählten Eintrag befüllen, sobald ein anderer ankommt
+  if (eintrag && eintrag.id !== geladeneId) {
+    setGeladeneId(eintrag.id)
+    setMenge(String(eintrag.Menge))
+    setDate(parseISO(eintrag.Datum))
+    setBemerkung(eintrag.Bemerkung)
+    setFehler(null)
+  }
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!eintrag) return
+    setFehler(null)
+
+    if (!date) return setFehler("Bitte ein Datum auswählen.")
+    const mengeZahl = Number(menge)
+    if (!Number.isFinite(mengeZahl) || mengeZahl <= 0) {
+      return setFehler("Die Menge muss größer als 0 sein.")
+    }
+
+    setLoading(true)
+    try {
+      await apiFetch(`/api/updateRecord/${eintrag.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          Menge: mengeZahl,
+          Datum: format(date, "yyyy-MM-dd"),
+          Bemerkung: bemerkung,
+        }),
+      })
+      setGeladeneId(null)
+      onSuccess()
+      onClose()
+    } catch (error) {
+      setFehler(error instanceof Error ? error.message : "Speichern fehlgeschlagen.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={eintrag !== null} onOpenChange={(offen) => !offen && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Abgabe bearbeiten</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Field>
+            <FieldLabel htmlFor="editMenge">Menge (m³)</FieldLabel>
+            <Input
+              id="editMenge"
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={menge}
+              onChange={(e) => setMenge(e.target.value)}
+            />
+          </Field>
+
+          <Field>
+            <FieldLabel>Datum</FieldLabel>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "dd.MM.yyyy") : <span>Datum wählen</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={date} onSelect={setDate} locale={de} />
+              </PopoverContent>
+            </Popover>
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor="editBemerkung">Bemerkung</FieldLabel>
+            <Textarea
+              id="editBemerkung"
+              rows={2}
+              value={bemerkung}
+              onChange={(e) => setBemerkung(e.target.value)}
+            />
+          </Field>
+
+          <FormMessage fehler={fehler} />
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Speichert..." : "Speichern"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
