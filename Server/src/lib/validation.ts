@@ -110,6 +110,17 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
         return res.status(404).json({ error: 'Datensatz nicht gefunden.' });
     }
 
+    // P2021/P2022 = Tabelle bzw. Spalte fehlt, P2023 = Spalte hat den falschen
+    // Typ. Alle drei bedeuten dasselbe: Das Schema in der Datenbank passt nicht
+    // zu prisma/schema.prisma, weil eine Migration nicht angewendet wurde.
+    if (err?.code === 'P2021' || err?.code === 'P2022' || err?.code === 'P2023') {
+        const hinweis =
+            'Die Datenbank ist nicht auf dem aktuellen Stand. ' +
+            'Bitte "npm run db:migrate" im Ordner Server ausführen.';
+        console.error(`\n⚠  ${hinweis}\n   (Prisma-Fehler ${err.code}: ${err.message?.split('\n').pop()?.trim()})\n`);
+        return res.status(500).json({ error: hinweis });
+    }
+
     console.error('Unerwarteter Serverfehler:', err);
     return res.status(500).json({ error: 'Interner Serverfehler.' });
 }
