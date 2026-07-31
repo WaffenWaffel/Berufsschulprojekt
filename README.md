@@ -106,7 +106,34 @@ Server/prisma/
 ## Lieferscheine
 
 Eine erfasste Abgabe ist zunächst **offen**. Beim Erstellen eines Lieferscheins
-kommen alle offenen Abgaben des gewählten Kunden auf den Schein und werden als
+kommen die offenen Abgaben des gewählten Kunden auf den Schein und werden als
 abgerechnet markiert — sie erscheinen dadurch auf keinem weiteren Schein mehr
 und lassen sich nicht mehr ändern oder löschen. Die Lieferschein-Nummer wird
 fortlaufend vergeben. Ohne ausgewählte Analyse wird die aktuellste abgedruckt.
+
+**Zeitraum.** Über die Felder *Von* und *Bis* lässt sich einschränken, welche
+Abgaben auf den Schein kommen — etwa für eine quartalsweise Abrechnung. Bleiben
+beide leer, werden wie bisher alle offenen Abgaben abgerechnet. Unter den
+Feldern steht jeweils, wie viele Abgaben und wie viel m³ der aktuellen Auswahl
+entsprechen; gibt es keine Treffer, ist der Button gesperrt.
+
+**Freischalten.** Eine abgerechnete Abgabe lässt sich über das Schloss-Symbol in
+der Tabelle wieder öffnen. Weil der Lieferschein zu diesem Zeitpunkt bereits
+gedruckt sein kann, weist der Dialog ausdrücklich darauf hin, dass Papier und
+gespeicherte Daten danach auseinanderlaufen. Zur Auswahl stehen:
+
+- **Nur diese Abgabe** — gibt eine einzelne Position wieder frei
+- **Ganzen Lieferschein zurücknehmen** — gibt alle Positionen des Scheins frei
+  (erscheint nur, wenn der Schein mehr als eine Position hat)
+
+Freigegebene Abgaben sind wieder änderbar und kommen auf den nächsten Schein.
+Ein Lieferschein wird nie gelöscht: Verliert er alle Positionen, bleibt seine
+Nummer erhalten und er wird als storniert vermerkt, damit die Nummernfolge
+lückenlos nachvollziehbar bleibt.
+
+## Tabelle filtern
+
+Über der Abgaben-Tabelle stehen ein Textfeld für den Kunden und eine Auswahl
+für das Jahr. Beide wirken zusammen, und die Summenzeile am Ende der Tabelle
+rechnet immer nur die sichtbaren Zeilen zusammen. Die Jahresliste entsteht
+automatisch aus den vorhandenen Datensätzen.

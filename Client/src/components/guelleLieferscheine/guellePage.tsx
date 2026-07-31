@@ -33,6 +33,7 @@ export function GuellePage() {
 
   const [bearbeiten, setBearbeiten] = useState<GuelleDaten | null>(null);
   const [loeschen, setLoeschen] = useState<GuelleDaten | null>(null);
+  const [freischalten, setFreischalten] = useState<GuelleDaten | null>(null);
 
   // Alle drei Listen zentral laden - vorher holte sich jede Unterkomponente
   // die Kundenliste einzeln, teils dreimal parallel.
@@ -75,10 +76,47 @@ export function GuellePage() {
     }
   };
 
+  /** Eine Abgabe oder den ganzen Lieferschein wieder freigeben. */
+  const handleReopen = async (umfang: "abgabe" | "schein") => {
+    if (!freischalten) return;
+    setAktionsFehler(null);
+    const pfad =
+      umfang === "abgabe"
+        ? `/api/reopenRecord/${freischalten.id}`
+        : `/api/reopenDelivery/${freischalten.LieferscheinNr}`;
+    try {
+      await apiFetch(pfad, { method: "PUT" });
+      setFreischalten(null);
+      datenLaden();
+    } catch (error) {
+      setAktionsFehler(
+        error instanceof Error ? error.message : "Freischalten fehlgeschlagen."
+      );
+      setFreischalten(null);
+    }
+  };
+
   const columns = useMemo(
-    () => createColumns({ onEdit: setBearbeiten, onDelete: setLoeschen }),
+    () =>
+      createColumns({
+        onEdit: setBearbeiten,
+        onDelete: setLoeschen,
+        onReopen: setFreischalten,
+      }),
     []
   );
+
+  // Jahre aus den vorhandenen Datumsangaben ableiten, neuestes zuerst
+  const jahre = useMemo(() => {
+    const gefunden = new Set(abgaben.map((a) => a.Datum.slice(0, 4)));
+    return [...gefunden].sort().reverse();
+  }, [abgaben]);
+
+  // Wie viele Positionen hängen am selben Lieferschein? Für den Hinweistext.
+  const positionenAmSchein = useMemo(() => {
+    if (!freischalten?.LieferscheinNr) return 0;
+    return abgaben.filter((a) => a.LieferscheinNr === freischalten.LieferscheinNr).length;
+  }, [abgaben, freischalten]);
 
   if (loading) {
     return <main className="flex-1 p-6">Lade Gülledaten...</main>;
@@ -109,6 +147,13 @@ export function GuellePage() {
               columns={columns}
               data={abgaben}
               filterFields={[{ key: "Kunde", label: "Kunde" }]}
+              selectFields={[
+                {
+                  key: "Datum",
+                  label: "Jahr",
+                  options: jahre.map((jahr) => ({ value: jahr, label: jahr })),
+                },
+              ]}
               renderFooter={(gefiltert) => {
                 const summe = gefiltert.reduce((wert, zeile) => wert + zeile.Menge, 0);
                 const offen = gefiltert
@@ -144,7 +189,12 @@ export function GuellePage() {
         <div className="lg:col-span-1">
           <div className="sticky top-6 space-y-6">
             <GuelleInput kunden={kunden} onSuccess={datenLaden} />
-            <CreateDelivery kunden={kunden} analysen={analysen} onSuccess={datenLaden} />
+            <CreateDelivery
+              kunden={kunden}
+              analysen={analysen}
+              abgaben={abgaben}
+              onSuccess={datenLaden}
+            />
           </div>
         </div>
       </div>
@@ -172,6 +222,54 @@ export function GuellePage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete}>Löschen</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={freischalten !== null}
+        onOpenChange={(offen) => !offen && setFreischalten(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Abgerechnete Abgabe freischalten?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              {freischalten && (
+                <div className="space-y-3">
+                  <p>
+                    Diese Abgabe ({freischalten.Menge.toLocaleString("de-DE")} m³ vom{" "}
+                    {freischalten.Datum.split("-").reverse().join(".")}) steht bereits auf{" "}
+                    <strong>Lieferschein Nr. {freischalten.LieferscheinNr}</strong>
+                    {positionenAmSchein > 1 && ` zusammen mit ${positionenAmSchein - 1} weiteren Position(en)`}.
+                  </p>
+                  <p className="text-destructive">
+                    Der bereits gedruckte Lieferschein stimmt danach nicht mehr mit den
+                    gespeicherten Daten überein. Die freigeschaltete Abgabe erscheint auf
+                    dem nächsten Lieferschein erneut.
+                  </p>
+                  <p>
+                    Verliert ein Lieferschein dadurch alle Positionen, bleibt seine Nummer
+                    erhalten und er wird als storniert vermerkt.
+                  </p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            {positionenAmSchein > 1 && (
+              <AlertDialogAction
+                onClick={() => handleReopen("schein")}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Ganzen Lieferschein zurücknehmen ({positionenAmSchein} Positionen)
+              </AlertDialogAction>
+            )}
+            <AlertDialogAction onClick={() => handleReopen("abgabe")}>
+              Nur diese Abgabe
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { generateDeliveryNotePdf } from '../delivery_service';
 import {
@@ -262,6 +263,15 @@ guelleRouter.delete('/deleteAnalysis/:id', asyncHandler(async (req, res) => {
 // 4. LIEFERSCHEIN (PDF)
 // =========================================================================
 
+/** Formuliert den gewählten Zeitraum für Fehlermeldungen. */
+function beschreibeZeitraum(von: Date | null, bis: Date | null): string {
+    const deutsch = (d: Date) => formatDateOnly(d).split('-').reverse().join('.');
+    if (von && bis) return `zwischen dem ${deutsch(von)} und dem ${deutsch(bis)}`;
+    if (von) return `ab dem ${deutsch(von)}`;
+    if (bis) return `bis zum ${deutsch(bis)}`;
+    return 'derzeit';
+}
+
 guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
     const kundenNr = requireId(req.body?.KundenNr, 'KundenNr');
 
@@ -275,16 +285,36 @@ guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
         ? [...new Set(rohAnalysen.map((wert: unknown) => requireId(wert, 'Analyse-ID')))]
         : [];
 
+    // Zeitraum ist optional. Ohne Angabe kommen wie bisher alle offenen
+    // Abgaben des Kunden auf den Schein.
+    const von = req.body?.Von ? parseDateOnly(req.body.Von, 'Von') : null;
+    const bis = req.body?.Bis ? parseDateOnly(req.body.Bis, 'Bis') : null;
+    if (von && bis && von > bis) {
+        throw new HttpError(400, '"Von" darf nicht nach "Bis" liegen.');
+    }
+
     const kunde = await prisma.guelleKunden.findUnique({ where: { kundenNr } });
     if (!kunde) throw new HttpError(404, 'Kunde nicht gefunden.');
 
     // Nur was noch nicht abgerechnet ist, kommt auf den Schein.
     const offeneAbgaben = await prisma.guelleAbgabe.findMany({
-        where: { guelleKundeId: kunde.id, abgerechnetAm: null },
+        where: {
+            guelleKundeId: kunde.id,
+            abgerechnetAm: null,
+            ...(von || bis
+                ? { datum: { ...(von && { gte: von }), ...(bis && { lte: bis }) } }
+                : {}),
+        },
         orderBy: [{ datum: 'asc' }, { id: 'asc' }],
     });
     if (offeneAbgaben.length === 0) {
-        throw new HttpError(400, 'Für diesen Kunden gibt es keine offenen Abgaben. Es wurde bereits alles abgerechnet.');
+        // Der Zeitraum muss in der Meldung stehen, sonst ist unklar, warum
+        // nichts gefunden wurde.
+        const zeitraum = beschreibeZeitraum(von, bis);
+        throw new HttpError(
+            400,
+            `Für diesen Kunden gibt es ${zeitraum} keine offenen Abgaben.`
+        );
     }
 
     let analysen;
@@ -368,4 +398,96 @@ guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
     // Ohne diesen Header kommt der Dateiname im Browser nicht an (CORS/Fetch)
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     res.send(pdfBuffer);
+}));
+
+// =========================================================================
+// 5. FREISCHALTEN (Abrechnung zurücknehmen)
+// =========================================================================
+//
+// Ein Lieferschein ist ein gedrucktes Dokument. Wird eine Position
+// nachträglich freigegeben, stimmt das Papier nicht mehr mit den Daten
+// überein. Der Schein selbst wird deshalb nie gelöscht - er bleibt mit seiner
+// Nummer bestehen und wird als storniert markiert, sobald er keine Positionen
+// mehr hat. So bleibt die Nummernfolge lückenlos nachvollziehbar.
+
+/** Markiert einen Lieferschein als storniert, wenn er keine Positionen mehr hat. */
+async function stornoPruefen(tx: Prisma.TransactionClient, lieferscheinId: number) {
+    const verbleibend = await tx.guelleAbgabe.count({ where: { lieferscheinId } });
+    if (verbleibend === 0) {
+        await tx.lieferschein.update({
+            where: { id: lieferscheinId },
+            data: { storniertAm: new Date() },
+        });
+        return true;
+    }
+    return false;
+}
+
+/** Einzelne Abgabe wieder freigeben. */
+guelleRouter.put('/reopenRecord/:id', asyncHandler(async (req, res) => {
+    const id = requireId(req.params.id, 'id');
+
+    const abgabe = await prisma.guelleAbgabe.findUnique({
+        where: { id },
+        include: { lieferschein: { select: { id: true, nummer: true } } },
+    });
+    if (!abgabe) throw new HttpError(404, 'Abgabe nicht gefunden.');
+    if (!abgabe.abgerechnetAm) {
+        throw new HttpError(400, 'Diese Abgabe ist nicht abgerechnet und daher bereits offen.');
+    }
+
+    const lieferscheinId = abgabe.lieferscheinId;
+    const nummer = abgabe.lieferschein?.nummer;
+
+    const storniert = await prisma.$transaction(async (tx) => {
+        await tx.guelleAbgabe.update({
+            where: { id },
+            data: { abgerechnetAm: null, lieferscheinId: null },
+        });
+        return lieferscheinId ? stornoPruefen(tx, lieferscheinId) : false;
+    });
+
+    res.json({
+        message: storniert
+            ? `Abgabe freigeschaltet. Lieferschein Nr. ${nummer} hat dadurch keine Positionen mehr und wurde als storniert markiert.`
+            : `Abgabe freigeschaltet. Sie stand auf Lieferschein Nr. ${nummer}.`,
+        freigegeben: 1,
+        lieferscheinNr: nummer ?? null,
+        lieferscheinStorniert: storniert,
+    });
+}));
+
+/** Alle Positionen eines Lieferscheins wieder freigeben. */
+guelleRouter.put('/reopenDelivery/:nummer', asyncHandler(async (req, res) => {
+    // Bewusst die Lieferschein-Nummer, nicht die interne ID: Die Nummer steht
+    // auf dem Papier und ist das, was die Oberfläche kennt.
+    const nummer = requireId(req.params.nummer, 'nummer');
+
+    const lieferschein = await prisma.lieferschein.findUnique({
+        where: { nummer },
+        include: { _count: { select: { positionen: true } } },
+    });
+    if (!lieferschein) throw new HttpError(404, `Lieferschein Nr. ${nummer} nicht gefunden.`);
+    if (lieferschein._count.positionen === 0) {
+        throw new HttpError(400, `Lieferschein Nr. ${nummer} hat keine Positionen mehr.`);
+    }
+
+    const anzahl = await prisma.$transaction(async (tx) => {
+        const { count } = await tx.guelleAbgabe.updateMany({
+            where: { lieferscheinId: lieferschein.id },
+            data: { abgerechnetAm: null, lieferscheinId: null },
+        });
+        await tx.lieferschein.update({
+            where: { id: lieferschein.id },
+            data: { storniertAm: new Date() },
+        });
+        return count;
+    });
+
+    res.json({
+        message: `Lieferschein Nr. ${nummer} zurückgenommen, ${anzahl} Abgabe(n) wieder offen.`,
+        freigegeben: anzahl,
+        lieferscheinNr: nummer,
+        lieferscheinStorniert: true,
+    });
 }));

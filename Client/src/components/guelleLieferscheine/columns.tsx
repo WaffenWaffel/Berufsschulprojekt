@@ -1,7 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Pencil, Trash2 } from "lucide-react"
+import { LockOpen, Pencil, Trash2 } from "lucide-react"
 import type { GuelleDaten } from "./types"
 
 export type { GuelleDaten, GuelleKunde, Analyse } from "./types"
@@ -15,13 +15,17 @@ function datumAnzeigen(iso: string): string {
 interface ColumnOptions {
   onEdit: (eintrag: GuelleDaten) => void
   onDelete: (eintrag: GuelleDaten) => void
+  onReopen: (eintrag: GuelleDaten) => void
 }
+
+/** Spalten-ID des Jahresfilters, wird auch in guellePage verwendet. */
+export const JAHR_FILTER_KEY = "Datum"
 
 /**
  * Spalten der Abgaben-Tabelle. Als Funktion, damit die Aktionsspalte
  * die Handler der Seite erreichen kann.
  */
-export function createColumns({ onEdit, onDelete }: ColumnOptions): ColumnDef<GuelleDaten>[] {
+export function createColumns({ onEdit, onDelete, onReopen }: ColumnOptions): ColumnDef<GuelleDaten>[] {
   return [
     {
       accessorKey: "KundenNr",
@@ -44,6 +48,10 @@ export function createColumns({ onEdit, onDelete }: ColumnOptions): ColumnDef<Gu
       accessorKey: "Datum",
       header: "Datum",
       cell: ({ row }) => datumAnzeigen(row.original.Datum),
+      // Filtert auf das Jahr im YYYY-MM-DD-String, gespeist aus dem
+      // Auswahlfeld über der Tabelle.
+      filterFn: (row, columnId, jahr) =>
+        !jahr || String(row.getValue(columnId)).startsWith(`${jahr}-`),
     },
     {
       accessorKey: "Bemerkung",
@@ -69,13 +77,26 @@ export function createColumns({ onEdit, onDelete }: ColumnOptions): ColumnDef<Gu
         const eintrag = row.original
         // Abgerechnete Abgaben stehen auf einem gedruckten Lieferschein und
         // dürfen nicht mehr verändert werden - das lehnt auch der Server ab.
+        // Sie lassen sich aber gezielt wieder freischalten.
         const gesperrt = eintrag.Abgerechnet
         const titel = gesperrt
-          ? `Steht auf Lieferschein ${eintrag.LieferscheinNr} und ist nicht mehr änderbar`
+          ? `Steht auf Lieferschein Nr. ${eintrag.LieferscheinNr} — zum Ändern zuerst freischalten`
           : undefined
 
         return (
           <div className="flex justify-end gap-1">
+            {gesperrt && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title={`Freischalten (steht auf Lieferschein Nr. ${eintrag.LieferscheinNr})`}
+                onClick={() => onReopen(eintrag)}
+              >
+                <LockOpen className="h-4 w-4" />
+                <span className="sr-only">Freischalten</span>
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

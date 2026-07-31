@@ -121,6 +121,10 @@ model Lieferschein {
   nummer         Int          @unique // fortlaufende Lieferschein-Nr. auf dem PDF
   erstelltAm     DateTime     @default(now())
 
+  // Gesetzt, wenn alle Positionen wieder freigeschaltet wurden. Der Schein
+  // bleibt erhalten, damit die Nummernfolge lückenlos nachvollziehbar bleibt.
+  storniertAm    DateTime?
+
   kunde          GuelleKunden @relation(fields: [guelleKundeId], references: [id])
   guelleKundeId  Int
 

@@ -38,10 +38,25 @@ interface FilterField {
   label: string;
 }
 
+/** Filter mit fester Auswahlliste, z.B. Jahr oder Sorte. */
+interface SelectFilterField {
+  key: string;
+  label: string;
+  options: { value: string; label: string }[];
+}
+
+/**
+ * Radix erlaubt keinen leeren String als Wert eines SelectItem. Für "Alle"
+ * verwenden wir deshalb einen Platzhalter und übersetzen ihn beim Setzen
+ * des Filters zurück nach undefined.
+ */
+const ALLE = "__alle"
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   filterFields?: FilterField[]
+  selectFields?: SelectFilterField[]
   /**
    * Optionale Fußzeile. Bekommt die aktuell gefilterten Zeilen übergeben,
    * damit z.B. eine Summe zum eingestellten Filter passt.
@@ -53,6 +68,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   filterFields = [],
+  selectFields = [],
   renderFooter,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
@@ -86,8 +102,8 @@ export function DataTable<TData, TValue>({
   return (
     <div>
       {/* Filter Bereich */}
-      {filterFields.length > 0 && (
-        <div className="flex flex-wrap gap-2 py-4">
+      {(filterFields.length > 0 || selectFields.length > 0) && (
+        <div className="flex flex-wrap items-center gap-2 py-4">
           {filterFields.map((field) => (
             <Input
               key={field.key}
@@ -98,6 +114,28 @@ export function DataTable<TData, TValue>({
               }
               className="max-w-sm w-[200px]"
             />
+          ))}
+
+          {selectFields.map((field) => (
+            <Select
+              key={field.key}
+              value={(table.getColumn(field.key)?.getFilterValue() as string) ?? ALLE}
+              onValueChange={(wert) =>
+                table.getColumn(field.key)?.setFilterValue(wert === ALLE ? undefined : wert)
+              }
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder={field.label} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALLE}>{field.label}: Alle</SelectItem>
+                {field.options.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ))}
         </div>
       )}

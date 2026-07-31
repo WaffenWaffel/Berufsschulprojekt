@@ -1,5 +1,15 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { format } from "date-fns"
+import { de } from "date-fns/locale"
+import { CalendarIcon, X } from "lucide-react"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
 import {
   Combobox,
@@ -25,11 +35,13 @@ import { Button } from "@/components/ui/button"
 import { apiDownload, blobHerunterladen } from "@/lib/api"
 import { KundenCombobox } from "./KundenCombobox"
 import { FormMessage } from "./FormMessage"
-import type { Analyse, GuelleKunde } from "./types"
+import type { Analyse, GuelleDaten, GuelleKunde } from "./types"
 
 interface CreateDeliveryProps {
   kunden: GuelleKunde[]
   analysen: Analyse[]
+  /** Alle Abgaben - dient nur der Vorschau, welche Positionen auf den Schein kommen. */
+  abgaben: GuelleDaten[]
   /** Wird nach erfolgreicher Erstellung aufgerufen - die Abgaben gelten dann als abgerechnet. */
   onSuccess?: () => void
 }
@@ -40,12 +52,36 @@ function datumAnzeigen(iso: string): string {
   return tag && monat && jahr ? `${tag}.${monat}.${jahr}` : iso
 }
 
-export function CreateDelivery({ kunden, analysen, onSuccess }: CreateDeliveryProps) {
+export function CreateDelivery({ kunden, analysen, abgaben, onSuccess }: CreateDeliveryProps) {
   const [selectedKunde, setSelectedKunde] = useState<GuelleKunde | null>(null)
   const [selectedAnalysen, setSelectedAnalysen] = useState<Analyse[]>([])
+  const [von, setVon] = useState<Date | undefined>()
+  const [bis, setBis] = useState<Date | undefined>()
   const [loading, setLoading] = useState(false)
   const [fehler, setFehler] = useState<string | null>(null)
   const [erfolg, setErfolg] = useState<string | null>(null)
+
+  const vonIso = von ? format(von, "yyyy-MM-dd") : null
+  const bisIso = bis ? format(bis, "yyyy-MM-dd") : null
+  const zeitraumUngueltig = vonIso !== null && bisIso !== null && vonIso > bisIso
+
+  /**
+   * Vorschau der Positionen. Dieselbe Bedingung wie im Backend: offene
+   * Abgaben des Kunden, optional auf den Zeitraum eingegrenzt. So sieht man
+   * vor dem Erstellen, was auf dem Schein landet.
+   */
+  const betroffen = useMemo(() => {
+    if (!selectedKunde) return []
+    return abgaben.filter(
+      (a) =>
+        a.KundenNr === selectedKunde.KundenNr &&
+        !a.Abgerechnet &&
+        (!vonIso || a.Datum >= vonIso) &&
+        (!bisIso || a.Datum <= bisIso)
+    )
+  }, [abgaben, selectedKunde, vonIso, bisIso])
+
+  const summe = betroffen.reduce((wert, a) => wert + a.Menge, 0)
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -53,6 +89,7 @@ export function CreateDelivery({ kunden, analysen, onSuccess }: CreateDeliveryPr
     setErfolg(null)
 
     if (!selectedKunde) return setFehler("Bitte einen Kunden auswählen.")
+    if (zeitraumUngueltig) return setFehler('"Von" darf nicht nach "Bis" liegen.')
 
     setLoading(true)
     try {
@@ -62,6 +99,9 @@ export function CreateDelivery({ kunden, analysen, onSuccess }: CreateDeliveryPr
           KundenNr: selectedKunde.KundenNr,
           // Leere Auswahl bedeutet: Server nimmt die aktuellste Analyse
           Analysen: selectedAnalysen.map((a) => a.id),
+          // Leerer Zeitraum bedeutet: alle offenen Abgaben
+          ...(vonIso && { Von: vonIso }),
+          ...(bisIso && { Bis: bisIso }),
         }),
       })
 
@@ -69,6 +109,8 @@ export function CreateDelivery({ kunden, analysen, onSuccess }: CreateDeliveryPr
 
       setSelectedAnalysen([])
       setSelectedKunde(null)
+      setVon(undefined)
+      setBis(undefined)
       setErfolg("Lieferschein erstellt und heruntergeladen.")
       onSuccess?.()
     } catch (error) {
@@ -93,8 +135,23 @@ export function CreateDelivery({ kunden, analysen, onSuccess }: CreateDeliveryPr
               selected={selectedKunde}
               onSelect={setSelectedKunde}
             />
+          </Field>
+
+          <Field>
+            <FieldLabel>Zeitraum (optional)</FieldLabel>
+            <div className="flex items-center gap-2">
+              <DatumFeld wert={von} setzen={setVon} platzhalter="Von" />
+              <span className="text-muted-foreground">–</span>
+              <DatumFeld wert={bis} setzen={setBis} platzhalter="Bis" />
+            </div>
             <FieldDescription>
-              Es kommen alle noch nicht abgerechneten Abgaben dieses Kunden auf den Schein.
+              {zeitraumUngueltig
+                ? '"Von" liegt nach "Bis".'
+                : selectedKunde
+                  ? betroffen.length > 0
+                    ? `${betroffen.length} offene ${betroffen.length === 1 ? "Abgabe" : "Abgaben"}, ${summe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} m³ kommen auf den Schein.`
+                    : "Für diesen Kunden gibt es im gewählten Zeitraum keine offenen Abgaben."
+                  : "Ohne Zeitraum kommen alle noch nicht abgerechneten Abgaben auf den Schein."}
             </FieldDescription>
           </Field>
 
@@ -134,11 +191,60 @@ export function CreateDelivery({ kunden, analysen, onSuccess }: CreateDeliveryPr
           <FormMessage fehler={fehler} erfolg={erfolg} />
         </CardContent>
         <CardFooter>
-          <Button type="submit" className="w-full" disabled={loading || !selectedKunde}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={loading || !selectedKunde || zeitraumUngueltig || betroffen.length === 0}
+          >
             {loading ? "Erstellt..." : "Lieferschein erstellen"}
           </Button>
         </CardFooter>
       </form>
     </Card>
+  )
+}
+
+interface DatumFeldProps {
+  wert: Date | undefined
+  setzen: (datum: Date | undefined) => void
+  platzhalter: string
+}
+
+/** Datumsauswahl mit Möglichkeit, die Auswahl wieder zu leeren. */
+function DatumFeld({ wert, setzen, platzhalter }: DatumFeldProps) {
+  return (
+    <div className="relative flex-1">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(
+              "w-full justify-start pr-8 text-left font-normal",
+              !wert && "text-muted-foreground"
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {wert ? format(wert, "dd.MM.yyyy") : platzhalter}
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0">
+          <Calendar mode="single" selected={wert} onSelect={setzen} locale={de} />
+        </PopoverContent>
+      </Popover>
+      {wert && (
+        <button
+          type="button"
+          onClick={() => setzen(undefined)}
+          title={`${platzhalter} leeren`}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+          <span className="sr-only">{platzhalter} leeren</span>
+        </button>
+      )}
+    </div>
   )
 }
