@@ -5,7 +5,11 @@
       "outDir": "./dist",
       "rootDir": "./src",
       "strict": true,
-      "esModuleInterop": true
+      "esModuleInterop": true,
+      // Typdefinitionen aus node_modules nicht mitprüfen. Der Client macht das
+      // ebenso. Ohne diese Zeile bricht der Build an einem Fehler in einem
+      // Fremdpaket (undici-types) ab, der den eigenen Code nicht betrifft.
+      "skipLibCheck": true
     },
     "include": [
     "src/**/*"

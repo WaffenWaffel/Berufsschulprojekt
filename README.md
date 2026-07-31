@@ -65,6 +65,19 @@ nicht im Repository — deshalb muss er nach jeder Schemaänderung neu entstehen
 Wird `db:migrate` vergessen, startet der Server zwar, liefert beim ersten
 Zugriff auf die Datenbank aber einen Fehler über fehlende Spalten.
 
+## Produktivbetrieb
+
+Für den Betrieb auf einem eigenen Server (Hetzner o.ä.) siehe
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Serverempfehlung, Einrichtung
+Schritt für Schritt, Updates und Backups.
+
+Kurzfassung: `npm run build` baut Client und Server, `npm start` startet den
+Server, der dann auch das gebaute Frontend ausliefert. Ein separater
+Vite-Prozess ist in Produktion nicht nötig.
+
+**Achtung:** Die Anwendung hat keine Zugriffskontrolle. Ohne vorgelagerten
+Passwortschutz gehören keine echten Kundendaten ins offene Internet.
+
 ## Nützliche Befehle
 
 | Befehl | Wirkung |

@@ -3,8 +3,8 @@
     "dev:client": "cd Client && npm run dev",
     "dev:server": "npm run dev --prefix Server",
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
-    "build": "cd Client && npm install && npm run build",
-    "start": "npm run start --prefix server"
+    "build": "npm run build --prefix Client && npm run build --prefix Server",
+    "start": "npm run start --prefix Server"
   },
   "devDependencies": {
     "@types/node": "^25.3.3",
