@@ -11,7 +11,10 @@
   },
   "scripts": {
     "dev": "nodemon src/index.ts",
-    "import-csv": "tsx src/importCsv.ts"
+    "import-csv": "tsx src/importCsv.ts",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:studio": "prisma studio"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -31,8 +34,5 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
-  "prisma": {
-    "config": "src/prisma.config.ts"
-  }
+  "type": "commonjs"
 }
