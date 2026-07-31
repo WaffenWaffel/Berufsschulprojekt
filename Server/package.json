@@ -10,6 +10,7 @@
     "puppeteer": "^24.37.5"
   },
   "scripts": {
+    "predev": "prisma generate",
     "dev": "nodemon src/index.ts",
     "import-csv": "tsx src/importCsv.ts",
     "postinstall": "prisma generate",

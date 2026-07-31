@@ -49,25 +49,27 @@ npm run dev
 
 ## Nach einem `git pull`
 
-Wenn sich `Server/prisma/schema.prisma` geändert hat, reichen die vorhandenen
-Dateien nicht aus — es fehlen sonst sowohl die Datenbankspalten als auch die
-passenden TypeScript-Typen:
+Wenn sich `Server/prisma/schema.prisma` geändert hat, braucht es einen Schritt
+von Hand — die Datenbank bekommt neue Spalten nicht von allein:
 
 ```bash
-npm install --prefix Server        # erzeugt über postinstall den Prisma-Client neu
-npm run db:migrate --prefix Server # wendet neue Migrationen an
+npm run db:migrate --prefix Server
 ```
 
-Wird der erste Schritt vergessen, bricht der Server beim Start mit
-TypeScript-Fehlern der Art `Property 'xyz' does not exist on type ...` ab. Der
-Prisma-Client unter `node_modules/.prisma/client` wird aus dem Schema generiert
-und liegt bewusst nicht im Repository.
+Die passenden TypeScript-Typen erzeugt das Projekt selbst: `npm run dev` löst
+über das `predev`-Script vorher `prisma generate` aus, ebenso jedes
+`npm install` über `postinstall`. Der Prisma-Client unter
+`node_modules/.prisma/client` wird aus dem Schema generiert und liegt bewusst
+nicht im Repository — deshalb muss er nach jeder Schemaänderung neu entstehen.
+
+Wird `db:migrate` vergessen, startet der Server zwar, liefert beim ersten
+Zugriff auf die Datenbank aber einen Fehler über fehlende Spalten.
 
 ## Nützliche Befehle
 
 | Befehl | Wirkung |
 | --- | --- |
-| `npm run dev` | Client und Server zusammen starten |
+| `npm run dev` | Client und Server zusammen starten (erzeugt den Prisma-Client vorher neu) |
 | `npm run dev:client` / `npm run dev:server` | nur eine Seite starten |
 | `npm run db:migrate --prefix Server` | ausstehende Migrationen anwenden |
 | `npm run db:studio --prefix Server` | Prisma Studio zum Betrachten der Daten |
