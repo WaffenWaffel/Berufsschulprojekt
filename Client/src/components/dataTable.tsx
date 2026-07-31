@@ -2,6 +2,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -41,12 +42,18 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   filterFields?: FilterField[]
+  /**
+   * Optionale Fußzeile. Bekommt die aktuell gefilterten Zeilen übergeben,
+   * damit z.B. eine Summe zum eingestellten Filter passt.
+   */
+  renderFooter?: (gefilterteZeilen: TData[]) => React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
-  filterFields = []
+  filterFields = [],
+  renderFooter,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -135,6 +142,11 @@ export function DataTable<TData, TValue>({
               </TableRow>
             )}
           </TableBody>
+          {renderFooter && (
+            <TableFooter>
+              {renderFooter(table.getFilteredRowModel().rows.map((row) => row.original))}
+            </TableFooter>
+          )}
         </Table>
       </div>
 

@@ -21,6 +21,7 @@ interface AnalysisItem {
   }
 
 interface DeliveryRequest {
+  lieferscheinNummer: number;
   customerName: string;
   customerAddress: string;
   items: DeliveryItem[];
@@ -28,9 +29,37 @@ interface DeliveryRequest {
 }
 
 export async function generateDeliveryNotePdf(data: DeliveryRequest): Promise<Buffer> {
-  const browser = await puppeteer.launch();
-  const page = await browser.newPage();
-  const totalAmount = data.items.reduce((sum, item) => sum + item.menge, 0);
+  const htmlContent = buildDeliveryNoteHtml(data);
+
+  // --no-sandbox wird in Container-Umgebungen (Docker, Render) benötigt,
+  // dort läuft Chromium sonst nicht an.
+  const browser = await puppeteer.launch({
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(htmlContent);
+    const pdfBuffer = await page.pdf({ format: 'A4' });
+    return Buffer.from(pdfBuffer);
+  } finally {
+    // auch bei einem Fehler schließen, sonst bleibt ein Chromium-Prozess übrig
+    await browser.close();
+  }
+}
+
+/** Mengen im deutschen Format ausgeben (Komma als Dezimaltrenner). */
+function mengeFormatiert(wert: number): string {
+  return wert.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * Baut das HTML des Lieferscheins. Bewusst von der PDF-Erzeugung getrennt,
+ * damit sich der Inhalt ohne laufenden Browser prüfen lässt.
+ */
+export function buildDeliveryNoteHtml(data: DeliveryRequest): string {
+  // Fließkomma-Summen runden (0.1 + 0.2 = 0.30000000000000004)
+  const totalAmount = Math.round(data.items.reduce((sum, item) => sum + item.menge, 0) * 100) / 100;
+  const nummerFormatiert = String(data.lieferscheinNummer).padStart(3, '0');
 
   // HTML Template mit deinen festen und den dynamischen Daten
   const analysisHtml = data.analysis.map((an, index) => `
@@ -102,7 +131,7 @@ export async function generateDeliveryNotePdf(data: DeliveryRequest): Promise<Bu
             <div style="font-size: 11pt; font-weight: bold;">${data.customerName}</div>
             ${data.customerAddress.replace(',', '<br>')}
           </div>
-          <div class="delivery-number">Lieferschein Nr. &nbsp; 001</div>
+          <div class="delivery-number">Lieferschein Nr. &nbsp; ${nummerFormatiert}</div>
         </div>
 
         <div class="analysis-grid">
@@ -123,7 +152,7 @@ export async function generateDeliveryNotePdf(data: DeliveryRequest): Promise<Bu
                 ${data.items.map(i => `Abholung am ${i.datum}`).join('<br>')}
               </td>
               <td style="text-align: center;">
-                ${data.items.map(i => i.menge).join('<br>')}
+                ${data.items.map(i => mengeFormatiert(i.menge)).join('<br>')}
               </td>
               <td style="text-align: center;">
                 ${data.items.map(() => 'cbm').join('<br>')}
@@ -131,7 +160,7 @@ export async function generateDeliveryNotePdf(data: DeliveryRequest): Promise<Bu
             </tr>
             <tr class="sum-row">
               <td style="text-align: right; padding-right: 20px;">Summe</td>
-              <td style="text-align: center;">${totalAmount}</td>
+              <td style="text-align: center;">${mengeFormatiert(totalAmount)}</td>
               <td style="text-align: center;">cbm</td>
             </tr>
           </tbody>
@@ -156,9 +185,5 @@ export async function generateDeliveryNotePdf(data: DeliveryRequest): Promise<Bu
     </html>
   `;
 
-  await page.setContent(htmlContent);
-  const pdfBuffer = await page.pdf({ format: 'A4' });
-
-  await browser.close();
-  return Buffer.from(pdfBuffer);
+  return htmlContent;
 }

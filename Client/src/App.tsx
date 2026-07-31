@@ -2,7 +2,6 @@ import { useState } from "react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { ThemeProvider } from "./components/theme-provider";
-import { GuelleInput } from "./components/guelleLieferscheine/createRecord";
 
 import { GuellePage } from "./components/guelleLieferscheine/guellePage";
 import   WaagePage from "./components/waagendatensaetze/waagePage";
@@ -22,7 +21,7 @@ export function App() {
       case "wagedaten":
         return <WaagePage />;
       default:
-        return <GuelleInput />;
+        return <GuellePage />;
     }
   };
 

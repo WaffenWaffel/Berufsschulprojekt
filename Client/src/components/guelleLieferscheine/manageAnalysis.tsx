@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
   FieldSet,
@@ -9,11 +8,23 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   Command,
   CommandEmpty,
@@ -30,217 +41,264 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { CalendarIcon, Check, ChevronsUpDown, Trash2, PlusCircle } from "lucide-react"
+import { CalendarIcon, Check, ChevronsUpDown, PlusCircle, Trash2 } from "lucide-react"
 import { format, parseISO } from "date-fns"
+import { de } from "date-fns/locale"
 import { cn } from "@/lib/utils"
-import type { Analyse } from "./columns"
-import { API_BASE } from "@/lib/api"
+import { apiFetch } from "@/lib/api"
+import { FormMessage } from "./FormMessage"
+import type { Analyse } from "./types"
 
-// NEU: Props-Interface
 interface ManageAnalysisProps {
-  onSuccess?: () => void;
+  onSuccess?: () => void
+}
+
+const leeresFormular = {
+  Stickstoff: "",
+  Amoniumstickstoff: "",
+  Phosphat: "",
+  Kalium: "",
 }
 
 export function ManageAnalysis({ onSuccess }: ManageAnalysisProps) {
-  const [open, setOpen] = useState(false);
-  const [comboOpen, setComboOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [date, setDate] = useState<Date>();
-  
-  const [analysenListe, setAnalysenListe] = useState<Analyse[]>([]);
-  const [selectedAnalyse, setSelectedAnalyse] = useState<Analyse | null>(null);
+  const [open, setOpen] = useState(false)
+  const [comboOpen, setComboOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const [date, setDate] = useState<Date | undefined>()
+  const [analysenListe, setAnalysenListe] = useState<Analyse[]>([])
+  const [selectedAnalyse, setSelectedAnalyse] = useState<Analyse | null>(null)
+  const [formData, setFormData] = useState(leeresFormular)
 
-  const emptyForm = {
-    Stickstoff: "",
-    Amoniumstickstoff: "",
-    Phosphat: "",
-    Kalium: "",
-  };
-
-  const [formData, setFormData] = useState(emptyForm);
-
-  // 1. Analysen laden
   const fetchAnalysen = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/getAnalysis`); // Erstelle diesen Endpoint im Backend
-      const data = await res.json();
-      setAnalysenListe(data);
-    } catch (err) {
-      console.error("Fehler beim Laden:", err);
+      setAnalysenListe(await apiFetch<Analyse[]>("/api/getAnalysis"))
+    } catch (error) {
+      setFehler(error instanceof Error ? error.message : "Analysen konnten nicht geladen werden.")
     }
-  };
+  }
 
   useEffect(() => {
-    if (open) fetchAnalysen();
-  }, [open]);
+    if (open) fetchAnalysen()
+  }, [open])
 
-  // 2. Auswahl-Logik
   const handleSelect = (analyse: Analyse | null) => {
+    setFehler(null)
     if (analyse) {
-      setSelectedAnalyse(analyse);
+      setSelectedAnalyse(analyse)
       setFormData({
-        Stickstoff: analyse.Stickstoff.toString(),
-        Amoniumstickstoff: analyse.Amoniumstickstoff.toString(),
-        Phosphat: analyse.Phosphat.toString(),
-        Kalium: analyse.Kalium.toString(),
-      });
-      setDate(parseISO(analyse.Datum)); // Datum-String in Date-Objekt umwandeln
+        Stickstoff: String(analyse.Stickstoff),
+        Amoniumstickstoff: String(analyse.Amoniumstickstoff),
+        Phosphat: String(analyse.Phosphat),
+        Kalium: String(analyse.Kalium),
+      })
+      setDate(parseISO(analyse.Datum))
     } else {
-      setSelectedAnalyse(null);
-      setFormData(emptyForm);
-      setDate(undefined);
+      setSelectedAnalyse(null)
+      setFormData(leeresFormular)
+      setDate(undefined)
     }
-    setComboOpen(false);
-  };
+    setComboOpen(false)
+  }
 
-  // 3. Speichern / Update
-  const handleSave = async () => {
-    setLoading(true);
-    const isUpdate = !!selectedAnalyse;
-    const url = isUpdate ? `${API_BASE}/api/updateAnalysis/${selectedAnalyse.id}` : `${API_BASE}/api/newAnalysis`;
-    
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setFehler(null)
+
+    if (!date) return setFehler("Bitte ein Datum für die Analyse auswählen.")
+
+    setLoading(true)
+    const istUpdate = selectedAnalyse !== null
+    const pfad = istUpdate ? `/api/updateAnalysis/${selectedAnalyse.id}` : "/api/newAnalysis"
+
     try {
-      const response = await fetch(url, {
-        method: isUpdate ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await apiFetch(pfad, {
+        method: istUpdate ? "PUT" : "POST",
         body: JSON.stringify({
           Stickstoff: Number(formData.Stickstoff),
           Amoniumstickstoff: Number(formData.Amoniumstickstoff),
           Phosphat: Number(formData.Phosphat),
           Kalium: Number(formData.Kalium),
-          Datum: date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+          Datum: format(date, "yyyy-MM-dd"),
         }),
-      });
+      })
 
-      if (!response.ok) throw new Error("Fehler beim Speichern");
-      setOpen(false);
-      handleSelect(null);
-      // NEU: App informieren
-      if (onSuccess) onSuccess();
+      setOpen(false)
+      handleSelect(null)
+      onSuccess?.()
     } catch (error) {
-      console.error(error);
+      setFehler(error instanceof Error ? error.message : "Speichern fehlgeschlagen.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  // 4. Löschen
   const handleDelete = async () => {
-    if (!selectedAnalyse || !confirm("Analyse wirklich löschen?")) return;
-    setLoading(true);
+    if (!selectedAnalyse) return
+    setFehler(null)
+    setLoading(true)
     try {
-      await fetch(`${API_BASE}/api/deleteAnalysis/${selectedAnalyse.id}`, { method: 'DELETE' });
-      setOpen(false);
-      handleSelect(null);
-      // NEU: App informieren
-      if (onSuccess) onSuccess();
+      await apiFetch(`/api/deleteAnalysis/${selectedAnalyse.id}`, { method: "DELETE" })
+      setOpen(false)
+      handleSelect(null)
+      onSuccess?.()
     } catch (error) {
-      console.error(error);
+      setFehler(error instanceof Error ? error.message : "Löschen fehlgeschlagen.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  const naehrstoffFelder = [
+    { key: "Stickstoff", label: "Gesamtstickstoff" },
+    { key: "Amoniumstickstoff", label: "Amoniumstickstoff" },
+    { key: "Phosphat", label: "Phosphat" },
+    { key: "Kalium", label: "Kalium" },
+  ] as const
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">Analysen verwalten</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{selectedAnalyse ? "Analyse bearbeiten" : "Neue Analyse anlegen"}</DialogTitle>
-          
-          {/* Auswahl-Dropdown */}
-          <div className="py-4">
-            <FieldLabel>Bestehende Analyse wählen</FieldLabel>
-            <Popover open={comboOpen} onOpenChange={setComboOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-between">
-                  {selectedAnalyse 
-                    ? `Analyse vom ${format(parseISO(selectedAnalyse.Datum), "dd.MM.yyyy")}` 
-                    : "Suche Datum oder 'Neu'..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                <Command>
-                  <CommandInput placeholder="Datum suchen..." />
-                  <CommandList>
-                    <CommandEmpty>Keine Analyse gefunden.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem onSelect={() => handleSelect(null)}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        <span>+ Neue Analyse erstellen</span>
-                      </CommandItem>
-                      {analysenListe.map((a) => (
-                        <CommandItem key={a.id} onSelect={() => handleSelect(a)}>
-                          <Check className={cn("mr-2 h-4 w-4", selectedAnalyse?.id === a.id ? "opacity-100" : "opacity-0")} />
-                          {format(parseISO(a.Datum), "dd.MM.yyyy")} (ID: {a.id})
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
+          <DialogTitle>
+            {selectedAnalyse ? "Analyse bearbeiten" : "Neue Analyse anlegen"}
+          </DialogTitle>
+          <DialogDescription>
+            Die Werte werden in kg/cbm auf dem Lieferschein abgedruckt.
+          </DialogDescription>
+        </DialogHeader>
 
+        <div className="py-2">
+          <FieldLabel>Bestehende Analyse wählen</FieldLabel>
+          <Popover open={comboOpen} onOpenChange={setComboOpen}>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="outline" className="w-full justify-between font-normal">
+                <span className="truncate">
+                  {selectedAnalyse
+                    ? `Analyse vom ${format(parseISO(selectedAnalyse.Datum), "dd.MM.yyyy")}`
+                    : "Suche Datum oder 'Neu'..."}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
+              <Command>
+                <CommandInput placeholder="Datum suchen..." />
+                <CommandList>
+                  <CommandEmpty>Keine Analyse gefunden.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem onSelect={() => handleSelect(null)}>
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      <span>+ Neue Analyse erstellen</span>
+                    </CommandItem>
+                    {analysenListe.map((a) => (
+                      <CommandItem
+                        key={a.id}
+                        value={format(parseISO(a.Datum), "dd.MM.yyyy")}
+                        onSelect={() => handleSelect(a)}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedAnalyse?.id === a.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {format(parseISO(a.Datum), "dd.MM.yyyy")}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <form onSubmit={handleSubmit}>
           <FieldSet>
             <FieldGroup>
-              <FieldDescription>Geben Sie die Analysewerte ein.</FieldDescription>
-              
-              <Field>
-                <FieldLabel htmlFor="stickstoff">Gesamtstickstoff</FieldLabel>
-                <Input id="stickstoff" type="number" value={formData.Stickstoff} onChange={(e) => setFormData({...formData, Stickstoff: e.target.value})} />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="amoniumstickstoff">Amoniumstickstoff</FieldLabel>
-                <Input id="amoniumstickstoff" type="number" value={formData.Amoniumstickstoff} onChange={(e) => setFormData({...formData, Amoniumstickstoff: e.target.value})} />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="phosphat">Phosphat</FieldLabel>
-                <Input id="phosphat" type="number" value={formData.Phosphat} onChange={(e) => setFormData({...formData, Phosphat: e.target.value})} />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="kalium">Kalium</FieldLabel>
-                <Input id="kalium" type="number" value={formData.Kalium} onChange={(e) => setFormData({...formData, Kalium: e.target.value})} />
-              </Field>
+              {naehrstoffFelder.map(({ key, label }) => (
+                <Field key={key}>
+                  <FieldLabel htmlFor={key}>{label} (kg/cbm)</FieldLabel>
+                  <Input
+                    id={key}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={formData[key]}
+                    onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                  />
+                </Field>
+              ))}
 
               <Field>
                 <FieldLabel>Datum der Analyse</FieldLabel>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !date && "text-muted-foreground"
+                      )}
+                    >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP") : <span>Datum wählen</span>}
+                      {date ? format(date, "dd.MM.yyyy") : <span>Datum wählen</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                    <Calendar mode="single" selected={date} onSelect={setDate} locale={de} />
                   </PopoverContent>
                 </Popover>
               </Field>
+
+              <FormMessage fehler={fehler} />
             </FieldGroup>
           </FieldSet>
-        </DialogHeader>
 
-        <DialogFooter className="flex justify-between sm:justify-between w-full mt-4">
-          {selectedAnalyse && (
-            <Button variant="destructive" onClick={handleDelete} disabled={loading}>
-              <Trash2 className="mr-2 h-4 w-4" /> Löschen
-            </Button>
-          )}
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>Abbrechen</Button>
-            <Button onClick={handleSave} disabled={loading}>
-              {selectedAnalyse ? "Speichern" : "Erstellen"}
-            </Button>
-          </div>
-        </DialogFooter>
+          <DialogFooter className="mt-6 w-full justify-between sm:justify-between">
+            {selectedAnalyse ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant="destructive" disabled={loading}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Löschen
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Analyse wirklich löschen?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Die Analyse vom{" "}
+                      {format(parseISO(selectedAnalyse.Datum), "dd.MM.yyyy")} wird
+                      gelöscht. Analysen, die bereits auf einem Lieferschein stehen,
+                      lehnt der Server ab.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete}>Löschen</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <span />
+            )}
+
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Abbrechen
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Speichert..." : selectedAnalyse ? "Speichern" : "Erstellen"}
+              </Button>
+            </div>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }
