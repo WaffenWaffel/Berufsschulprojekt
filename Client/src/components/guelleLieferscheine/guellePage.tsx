@@ -40,10 +40,15 @@ export function GuellePage() {
   const datenLaden = useCallback(async () => {
     setLadeFehler(null);
     try {
+      // versuche > 1: Beim Start von "npm run dev" ist Vite schneller bereit
+      // als das Backend (ts-node prüft erst die Typen). Ohne Wiederholung
+      // zeigt die Seite dann sofort einen Fehler, obwohl der Server nur noch
+      // ein paar Sekunden braucht. Nur beim Lesen - Schreibvorgänge werden
+      // bewusst nicht wiederholt.
       const [neueAbgaben, neueKunden, neueAnalysen] = await Promise.all([
-        apiFetch<GuelleDaten[]>("/api/getGuelleDaten"),
-        apiFetch<GuelleKunde[]>("/api/getCustomer"),
-        apiFetch<Analyse[]>("/api/getAnalysis"),
+        apiFetch<GuelleDaten[]>("/api/getGuelleDaten", { versuche: 5 }),
+        apiFetch<GuelleKunde[]>("/api/getCustomer", { versuche: 5 }),
+        apiFetch<Analyse[]>("/api/getAnalysis", { versuche: 5 }),
       ]);
       setAbgaben(neueAbgaben);
       setKunden(neueKunden);

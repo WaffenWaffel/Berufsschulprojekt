@@ -5,42 +5,102 @@
 export const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 /**
- * Liest die Fehlermeldung aus der Antwort des Servers.
- * Das Backend antwortet im Fehlerfall mit { error: "..." } - diesen Text
- * wollen wir dem Benutzer zeigen statt eines generischen "Fehler beim Speichern".
+ * Fehler einer API-Anfrage.
+ *
+ * `erreichbar` unterscheidet zwei sehr verschiedene Fälle:
+ * - false: Das Backend war nicht ansprechbar (läuft noch nicht, abgestürzt).
+ *   Solche Anfragen darf man gefahrlos wiederholen.
+ * - true: Der Server hat geantwortet und die Anfrage abgelehnt, z.B. wegen
+ *   einer Validierung. Ein erneuter Versuch würde dasselbe Ergebnis liefern.
  */
-async function fehlermeldungLesen(response: Response): Promise<string> {
+export class ApiError extends Error {
+  status: number;
+  erreichbar: boolean;
+
+  constructor(message: string, status: number, erreichbar: boolean) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.erreichbar = erreichbar;
+  }
+}
+
+/**
+ * Baut aus einer fehlgeschlagenen Antwort einen ApiError.
+ *
+ * Das Backend antwortet im Fehlerfall immer mit { error: "..." } - diesen Text
+ * zeigen wir dem Benutzer. Fehlt er bei einem 5xx, kam die Antwort nicht vom
+ * Backend selbst, sondern vom Entwicklungs-Proxy, der das Backend nicht
+ * erreicht hat (leerer Körper, Status 500).
+ */
+async function fehlerAuswerten(response: Response): Promise<ApiError> {
+  let meldung: string | null = null;
   try {
     const daten = await response.json();
-    if (daten?.error) return daten.error;
+    if (daten?.error) meldung = daten.error;
   } catch {
-    // Antwort war kein JSON (z.B. Proxy-Fehlerseite) - Standardtext verwenden
+    // Antwort war kein JSON - dann bleibt meldung null
   }
-  return `Server antwortete mit Status ${response.status}.`;
+
+  if (meldung) return new ApiError(meldung, response.status, true);
+
+  const proxyProblem = response.status >= 500;
+  return new ApiError(
+    proxyProblem
+      ? "Der Server ist nicht erreichbar. Läuft das Backend?"
+      : `Server antwortete mit Status ${response.status}.`,
+    response.status,
+    !proxyProblem
+  );
+}
+
+interface ApiOptions extends RequestInit {
+  /**
+   * Anzahl der Versuche, wenn das Backend nicht erreichbar ist. Nur für
+   * lesende Anfragen sinnvoll - ein wiederholtes POST würde doppelt anlegen.
+   * Standard 1, also kein Wiederholen.
+   */
+  versuche?: number;
+}
+
+async function einmalAnfragen(pfad: string, options: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${API_BASE}${pfad}`, {
+      ...options,
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...options.headers,
+      },
+    });
+  } catch {
+    // fetch wirft nur bei Netzwerkproblemen, nicht bei HTTP-Fehlerstatus
+    throw new ApiError("Der Server ist nicht erreichbar. Läuft das Backend?", 0, false);
+  }
 }
 
 /**
  * fetch-Wrapper für JSON-Endpunkte: setzt die Basis-URL und den Content-Type
- * und wirft bei Fehlern eine Exception mit der Meldung des Servers.
+ * und wirft bei Fehlern einen ApiError mit der Meldung des Servers.
  */
 export async function apiFetch<T = unknown>(
   pfad: string,
-  options: RequestInit = {}
+  { versuche = 1, ...options }: ApiOptions = {}
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${pfad}`, {
-    ...options,
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
-    },
-  });
+  for (let versuch = 1; ; versuch++) {
+    try {
+      const response = await einmalAnfragen(pfad, options);
+      if (!response.ok) throw await fehlerAuswerten(response);
 
-  if (!response.ok) {
-    throw new Error(await fehlermeldungLesen(response));
+      if (response.status === 204) return undefined as T;
+      return (await response.json()) as T;
+    } catch (fehler) {
+      const nichtErreichbar = fehler instanceof ApiError && !fehler.erreichbar;
+      if (!nichtErreichbar || versuch >= versuche) throw fehler;
+      // Backend startet vermutlich noch (ts-node prüft beim Start die Typen).
+      // Kurz warten und erneut versuchen, statt sofort einen Fehler zu zeigen.
+      await new Promise((r) => setTimeout(r, 600 * versuch));
+    }
   }
-
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
 }
 
 /**
@@ -60,7 +120,7 @@ export async function apiDownload(
   });
 
   if (!response.ok) {
-    throw new Error(await fehlermeldungLesen(response));
+    throw await fehlerAuswerten(response);
   }
   return response;
 }
