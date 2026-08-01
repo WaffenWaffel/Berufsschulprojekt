@@ -71,8 +71,10 @@ model Waegung {
 
 // 5. Tabelle: GülleKunden (Voll eigenständig)
 model GuelleKunden {
+  // Die automatisch vergebene id ist zugleich die fachliche Kennung des
+  // Kunden. Eine zusätzliche Kundennummer gab es früher, wird aber nicht
+  // mehr gebraucht.
   id        Int             @id @default(autoincrement())
-  kundenNr  Int             @unique
   name      String
   vorname   String
   plz       String   // String, damit führende Nullen erhalten bleiben (z.B. "01067")

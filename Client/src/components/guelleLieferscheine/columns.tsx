@@ -28,10 +28,6 @@ export const JAHR_FILTER_KEY = "Datum"
 export function createColumns({ onEdit, onDelete, onReopen }: ColumnOptions): ColumnDef<GuelleDaten>[] {
   return [
     {
-      accessorKey: "KundenNr",
-      header: "KundenNr",
-    },
-    {
       accessorKey: "Kunde",
       header: "Kunde",
     },

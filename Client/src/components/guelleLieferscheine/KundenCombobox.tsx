@@ -63,9 +63,9 @@ export function KundenCombobox({
             <CommandGroup>
               {kunden.map((kunde) => (
                 <CommandItem
-                  key={kunde.KundenNr}
-                  // Nach Name, Vorname und Nummer suchbar
-                  value={`${kunde.Name} ${kunde.Vorname} ${kunde.KundenNr}`}
+                  key={kunde.id}
+                  // Nach Name und Vorname suchbar
+                  value={`${kunde.Name} ${kunde.Vorname}`}
                   onSelect={() => {
                     onSelect(kunde)
                     setOpen(false)
@@ -74,10 +74,10 @@ export function KundenCombobox({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selected?.KundenNr === kunde.KundenNr ? "opacity-100" : "opacity-0"
+                      selected?.id === kunde.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {kunde.Name}, {kunde.Vorname} ({kunde.KundenNr})
+                  {kunde.Name}, {kunde.Vorname}
                 </CommandItem>
               ))}
             </CommandGroup>

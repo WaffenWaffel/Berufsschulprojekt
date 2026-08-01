@@ -36,7 +36,7 @@ export function requireNonNegativeNumber(value: unknown, feld: string): number {
     return zahl;
 }
 
-/** Pflichtfeld: ganze Zahl größer als 0 (z.B. Kundennummer, IDs aus der URL). */
+/** Pflichtfeld: ganze Zahl größer als 0 (z.B. IDs aus der URL oder dem Body). */
 export function requireId(value: unknown, feld: string): number {
     const zahl = Number(value);
     if (!Number.isInteger(zahl) || zahl <= 0) {

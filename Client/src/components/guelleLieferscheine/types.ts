@@ -2,7 +2,7 @@
 
 export type GuelleDaten = {
   id: number;
-  KundenNr: number;
+  KundeId: number;
   Kunde: string;
   Menge: number;
   Datum: string; // YYYY-MM-DD
@@ -12,7 +12,7 @@ export type GuelleDaten = {
 };
 
 export type GuelleKunde = {
-  KundenNr: number;
+  id: number;
   Name: string;
   Vorname: string;
   /** Text, damit führende Nullen erhalten bleiben (z.B. "01067"). */

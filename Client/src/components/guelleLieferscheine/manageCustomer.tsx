@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
   FieldSet,
@@ -52,7 +51,6 @@ interface ManageCustomerProps {
 }
 
 const leeresFormular = {
-  KundenNr: "",
   Name: "",
   Vorname: "",
   PLZ: "",
@@ -87,7 +85,6 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
     if (kunde) {
       setSelectedKunde(kunde)
       setFormData({
-        KundenNr: String(kunde.KundenNr),
         Name: kunde.Name,
         Vorname: kunde.Vorname ?? "",
         PLZ: kunde.PLZ,
@@ -109,7 +106,7 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
 
     const istUpdate = selectedKunde !== null
     const pfad = istUpdate
-      ? `/api/updateCustomer/${formData.KundenNr}`
+      ? `/api/updateCustomer/${selectedKunde.id}`
       : "/api/newCustomer"
 
     try {
@@ -117,7 +114,6 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
         method: istUpdate ? "PUT" : "POST",
         body: JSON.stringify({
           ...formData,
-          KundenNr: Number(formData.KundenNr),
           // PLZ bleibt Text, damit führende Nullen erhalten bleiben
           PLZ: formData.PLZ.trim(),
         }),
@@ -138,7 +134,7 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
     setFehler(null)
     setLoading(true)
     try {
-      await apiFetch(`/api/deleteCustomer/${selectedKunde.KundenNr}`, { method: "DELETE" })
+      await apiFetch(`/api/deleteCustomer/${selectedKunde.id}`, { method: "DELETE" })
       setOpen(false)
       handleSelect(null)
       onSuccess?.()
@@ -173,7 +169,7 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
               <Button type="button" variant="outline" className="w-full justify-between font-normal">
                 <span className="truncate">
                   {selectedKunde
-                    ? `${selectedKunde.Name} (${selectedKunde.KundenNr})`
+                    ? `${selectedKunde.Name}, ${selectedKunde.Vorname}`
                     : "Suche oder 'Neu anlegen'..."}
                 </span>
                 <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
@@ -191,17 +187,17 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
                     </CommandItem>
                     {kundenListe.map((k) => (
                       <CommandItem
-                        key={k.KundenNr}
-                        value={`${k.Name} ${k.Vorname} ${k.KundenNr}`}
+                        key={k.id}
+                        value={`${k.Name} ${k.Vorname}`}
                         onSelect={() => handleSelect(k)}
                       >
                         <Check
                           className={cn(
                             "mr-2 h-4 w-4",
-                            selectedKunde?.KundenNr === k.KundenNr ? "opacity-100" : "opacity-0"
+                            selectedKunde?.id === k.id ? "opacity-100" : "opacity-0"
                           )}
                         />
-                        {k.Name}, {k.Vorname} ({k.KundenNr})
+                        {k.Name}, {k.Vorname}
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -214,25 +210,6 @@ export function ManageCustomer({ onSuccess }: ManageCustomerProps) {
         <form onSubmit={handleSubmit}>
           <FieldSet>
             <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="kundenNr">KundenNr</FieldLabel>
-                <Input
-                  id="kundenNr"
-                  type="number"
-                  min="1"
-                  required
-                  value={formData.KundenNr}
-                  // Beim Bearbeiten ist die Kundennummer der Schlüssel und nicht änderbar
-                  disabled={selectedKunde !== null}
-                  onChange={(e) => setFormData({ ...formData, KundenNr: e.target.value })}
-                />
-                {selectedKunde && (
-                  <FieldDescription>
-                    Die Kundennummer kann nachträglich nicht geändert werden.
-                  </FieldDescription>
-                )}
-              </Field>
-
               <Field>
                 <FieldLabel htmlFor="kundenName">Name</FieldLabel>
                 <Input

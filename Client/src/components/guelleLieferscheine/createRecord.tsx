@@ -70,7 +70,7 @@ export function GuelleInput({ kunden, onSuccess }: GuelleInputProps) {
       await apiFetch("/api/newRecord", {
         method: "POST",
         body: JSON.stringify({
-          KundenNr: selectedKunde.KundenNr,
+          KundeId: selectedKunde.id,
           Menge: mengeZahl,
           Datum: format(date, "yyyy-MM-dd"),
           Bemerkung: bemerkung,

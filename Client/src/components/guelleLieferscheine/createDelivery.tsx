@@ -74,7 +74,7 @@ export function CreateDelivery({ kunden, analysen, abgaben, onSuccess }: CreateD
     if (!selectedKunde) return []
     return abgaben.filter(
       (a) =>
-        a.KundenNr === selectedKunde.KundenNr &&
+        a.KundeId === selectedKunde.id &&
         !a.Abgerechnet &&
         (!vonIso || a.Datum >= vonIso) &&
         (!bisIso || a.Datum <= bisIso)
@@ -96,7 +96,7 @@ export function CreateDelivery({ kunden, analysen, abgaben, onSuccess }: CreateD
       const response = await apiDownload("/api/newDelivery", {
         method: "POST",
         body: JSON.stringify({
-          KundenNr: selectedKunde.KundenNr,
+          KundeId: selectedKunde.id,
           // Leere Auswahl bedeutet: Server nimmt die aktuellste Analyse
           Analysen: selectedAnalysen.map((a) => a.id),
           // Leerer Zeitraum bedeutet: alle offenen Abgaben
