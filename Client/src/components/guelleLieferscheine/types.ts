@@ -30,3 +30,11 @@ export type Analyse = {
   Kalium: number;
   Datum: string; // YYYY-MM-DD
 };
+
+export type Betrieb = {
+  id: number;
+  Name: string;
+  Strasse: string;
+  PLZ: string;
+  Ort: string;
+};

@@ -65,6 +65,28 @@ nicht im Repository — deshalb muss er nach jeder Schemaänderung neu entstehen
 Wird `db:migrate` vergessen, startet der Server zwar, liefert beim ersten
 Zugriff auf die Datenbank aber einen Fehler über fehlende Spalten.
 
+## Betriebe (Mandanten)
+
+Alle fachlichen Daten gehören zu genau einem Betrieb. Ein Betrieb sieht
+ausschließlich seine eigenen Kunden, Abgaben, Analysen und Lieferscheine;
+jeder hat einen eigenen Lieferschein-Nummernkreis, der bei 1 beginnt, und
+seinen eigenen Briefkopf auf dem PDF.
+
+```bash
+npm run betrieb:liste --prefix Server    # vorhandene Betriebe anzeigen
+npm run betrieb:neu   --prefix Server -- "Name" "Straße" "PLZ" "Ort" [UstIdNr] [Ansprechpartner] [Telefon] [E-Mail]
+```
+
+Welcher Betrieb angezeigt wird, steuert vorerst `BETRIEB_ID` in `Server/.env`:
+
+```
+BETRIEB_ID=1
+```
+
+Das ist eine Übergangslösung, bis die Anmeldung eingebaut ist — danach ergibt
+sich der Betrieb aus dem angemeldeten Benutzer. Der Entwurf dazu steht in
+[docs/LOGIN-ENTWURF.md](docs/LOGIN-ENTWURF.md).
+
 ## Produktivbetrieb
 
 Für den Betrieb auf einem eigenen Server (Hetzner o.ä.) siehe

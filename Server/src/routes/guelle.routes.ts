@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { betriebLaden } from '../lib/betrieb';
 import { generateDeliveryNotePdf } from '../delivery_service';
 import {
     HttpError,
@@ -20,8 +21,9 @@ export const guelleRouter = Router();
 // 1. GUELLE-ABGABEN (Bewegungsdaten)
 // =========================================================================
 
-guelleRouter.get('/getGuelleDaten', asyncHandler(async (_req, res) => {
+guelleRouter.get('/getGuelleDaten', asyncHandler(async (req, res) => {
     const abgaben = await prisma.guelleAbgabe.findMany({
+        where: { betriebId: req.betriebId },
         include: {
             kunde: true,
             lieferschein: { select: { nummer: true } },
@@ -49,13 +51,17 @@ guelleRouter.post('/newRecord', asyncHandler(async (req, res) => {
     const datum = parseDateOnly(req.body?.Datum, 'Datum', true);
     const bemerkung = optionalText(req.body?.Bemerkung);
 
-    const kunde = await prisma.guelleKunden.findUnique({ where: { id: kundeId } });
+    // findFirst statt findUnique: nur so lässt sich zusätzlich nach dem
+    // Betrieb filtern und damit der Zugriff auf fremde Datensätze verhindern.
+    const kunde = await prisma.guelleKunden.findFirst({
+        where: { id: kundeId, betriebId: req.betriebId },
+    });
     if (!kunde) {
         throw new HttpError(404, 'Kunde nicht gefunden.');
     }
 
     const neueAbgabe = await prisma.guelleAbgabe.create({
-        data: { menge, datum, bemerkung, guelleKundeId: kunde.id },
+        data: { menge, datum, bemerkung, guelleKundeId: kunde.id, betriebId: req.betriebId },
     });
 
     res.status(201).json({ message: 'Datensatz erfolgreich gespeichert', eintrag: neueAbgabe });
@@ -67,8 +73,8 @@ guelleRouter.put('/updateRecord/:id', asyncHandler(async (req, res) => {
     const datum = parseDateOnly(req.body?.Datum, 'Datum');
     const bemerkung = optionalText(req.body?.Bemerkung);
 
-    const vorhanden = await prisma.guelleAbgabe.findUnique({
-        where: { id },
+    const vorhanden = await prisma.guelleAbgabe.findFirst({
+        where: { id, betriebId: req.betriebId },
         include: { lieferschein: { select: { nummer: true } } },
     });
     if (!vorhanden) throw new HttpError(404, 'Abgabe nicht gefunden.');
@@ -90,8 +96,8 @@ guelleRouter.put('/updateRecord/:id', asyncHandler(async (req, res) => {
 guelleRouter.delete('/deleteRecord/:id', asyncHandler(async (req, res) => {
     const id = requireId(req.params.id, 'id');
 
-    const vorhanden = await prisma.guelleAbgabe.findUnique({
-        where: { id },
+    const vorhanden = await prisma.guelleAbgabe.findFirst({
+        where: { id, betriebId: req.betriebId },
         include: { lieferschein: { select: { nummer: true } } },
     });
     if (!vorhanden) throw new HttpError(404, 'Abgabe nicht gefunden.');
@@ -142,8 +148,9 @@ function kundeAusBody(body: any) {
     };
 }
 
-guelleRouter.get('/getCustomer', asyncHandler(async (_req, res) => {
+guelleRouter.get('/getCustomer', asyncHandler(async (req, res) => {
     const kunden = await prisma.guelleKunden.findMany({
+        where: { betriebId: req.betriebId },
         orderBy: [{ name: 'asc' }, { vorname: 'asc' }],
     });
     res.json(kunden.map(kundeNachAussen));
@@ -153,7 +160,9 @@ guelleRouter.post('/newCustomer', asyncHandler(async (req, res) => {
     // Keine Nummer mehr im Body - die id vergibt die Datenbank selbst.
     const felder = kundeAusBody(req.body);
 
-    const neuerKunde = await prisma.guelleKunden.create({ data: felder });
+    const neuerKunde = await prisma.guelleKunden.create({
+        data: { ...felder, betriebId: req.betriebId },
+    });
 
     res.status(201).json({ message: 'Kunde erfolgreich angelegt', eintrag: kundeNachAussen(neuerKunde) });
 }));
@@ -162,7 +171,9 @@ guelleRouter.put('/updateCustomer/:id', asyncHandler(async (req, res) => {
     const id = requireId(req.params.id, 'id');
     const felder = kundeAusBody(req.body);
 
-    const vorhanden = await prisma.guelleKunden.findUnique({ where: { id } });
+    const vorhanden = await prisma.guelleKunden.findFirst({
+        where: { id, betriebId: req.betriebId },
+    });
     if (!vorhanden) throw new HttpError(404, 'Kunde nicht gefunden.');
 
     const aktualisiert = await prisma.guelleKunden.update({
@@ -176,7 +187,9 @@ guelleRouter.put('/updateCustomer/:id', asyncHandler(async (req, res) => {
 guelleRouter.delete('/deleteCustomer/:id', asyncHandler(async (req, res) => {
     const id = requireId(req.params.id, 'id');
 
-    const kunde = await prisma.guelleKunden.findUnique({ where: { id } });
+    const kunde = await prisma.guelleKunden.findFirst({
+        where: { id, betriebId: req.betriebId },
+    });
     if (!kunde) throw new HttpError(404, 'Kunde nicht gefunden.');
 
     // Reihenfolge zählt: erst die Abgaben (die auf Lieferscheine zeigen),
@@ -218,15 +231,18 @@ function analyseAusBody(body: any) {
     };
 }
 
-guelleRouter.get('/getAnalysis', asyncHandler(async (_req, res) => {
+guelleRouter.get('/getAnalysis', asyncHandler(async (req, res) => {
     const analysen = await prisma.analyse.findMany({
+        where: { betriebId: req.betriebId },
         orderBy: [{ datum: 'desc' }, { id: 'desc' }],
     });
     res.json(analysen.map(analyseNachAussen));
 }));
 
 guelleRouter.post('/newAnalysis', asyncHandler(async (req, res) => {
-    const neueAnalyse = await prisma.analyse.create({ data: analyseAusBody(req.body) });
+    const neueAnalyse = await prisma.analyse.create({
+        data: { ...analyseAusBody(req.body), betriebId: req.betriebId },
+    });
     res.status(201).json({ message: 'Analyse erfolgreich gespeichert', eintrag: analyseNachAussen(neueAnalyse) });
 }));
 
@@ -234,7 +250,9 @@ guelleRouter.put('/updateAnalysis/:id', asyncHandler(async (req, res) => {
     const id = requireId(req.params.id, 'id');
     const daten = analyseAusBody(req.body);
 
-    const vorhanden = await prisma.analyse.findUnique({ where: { id } });
+    const vorhanden = await prisma.analyse.findFirst({
+        where: { id, betriebId: req.betriebId },
+    });
     if (!vorhanden) throw new HttpError(404, 'Analyse nicht gefunden.');
 
     const aktualisiert = await prisma.analyse.update({ where: { id }, data: daten });
@@ -244,8 +262,8 @@ guelleRouter.put('/updateAnalysis/:id', asyncHandler(async (req, res) => {
 guelleRouter.delete('/deleteAnalysis/:id', asyncHandler(async (req, res) => {
     const id = requireId(req.params.id, 'id');
 
-    const vorhanden = await prisma.analyse.findUnique({
-        where: { id },
+    const vorhanden = await prisma.analyse.findFirst({
+        where: { id, betriebId: req.betriebId },
         include: { lieferscheine: { select: { lieferscheinId: true } } },
     });
     if (!vorhanden) throw new HttpError(404, 'Analyse nicht gefunden.');
@@ -275,6 +293,8 @@ function beschreibeZeitraum(von: Date | null, bis: Date | null): string {
 
 guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
     const kundeId = requireId(req.body?.KundeId, 'KundeId');
+    // Absenderdaten für den Briefkopf des Lieferscheins
+    const betrieb = await betriebLaden(req.betriebId);
 
     // Analysen sind optional. Wird nichts übergeben, nimmt der Lieferschein
     // die aktuellste Analyse.
@@ -294,13 +314,16 @@ guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
         throw new HttpError(400, '"Von" darf nicht nach "Bis" liegen.');
     }
 
-    const kunde = await prisma.guelleKunden.findUnique({ where: { id: kundeId } });
+    const kunde = await prisma.guelleKunden.findFirst({
+        where: { id: kundeId, betriebId: req.betriebId },
+    });
     if (!kunde) throw new HttpError(404, 'Kunde nicht gefunden.');
 
     // Nur was noch nicht abgerechnet ist, kommt auf den Schein.
     const offeneAbgaben = await prisma.guelleAbgabe.findMany({
         where: {
             guelleKundeId: kunde.id,
+            betriebId: req.betriebId,
             abgerechnetAm: null,
             ...(von || bis
                 ? { datum: { ...(von && { gte: von }), ...(bis && { lte: bis }) } }
@@ -321,7 +344,7 @@ guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
     let analysen;
     if (analysenIds.length > 0) {
         analysen = await prisma.analyse.findMany({
-            where: { id: { in: analysenIds } },
+            where: { id: { in: analysenIds }, betriebId: req.betriebId },
             orderBy: [{ datum: 'desc' }, { id: 'desc' }],
         });
         if (analysen.length !== analysenIds.length) {
@@ -330,7 +353,10 @@ guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
             throw new HttpError(404, `Analyse(n) nicht gefunden: ${fehlend.join(', ')}`);
         }
     } else {
-        const neueste = await prisma.analyse.findFirst({ orderBy: [{ datum: 'desc' }, { id: 'desc' }] });
+        const neueste = await prisma.analyse.findFirst({
+            where: { betriebId: req.betriebId },
+            orderBy: [{ datum: 'desc' }, { id: 'desc' }],
+        });
         analysen = neueste ? [neueste] : [];
     }
 
@@ -338,7 +364,9 @@ guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
     // Beides in einer Transaktion, damit keine Abgabe ohne Schein markiert wird.
     const abgabeIds = offeneAbgaben.map(a => a.id);
     const lieferschein = await prisma.$transaction(async (tx) => {
+        // Jeder Betrieb hat seinen eigenen Nummernkreis und beginnt bei 1.
         const letzter = await tx.lieferschein.findFirst({
+            where: { betriebId: req.betriebId },
             orderBy: { nummer: 'desc' },
             select: { nummer: true },
         });
@@ -348,6 +376,7 @@ guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
             data: {
                 nummer: naechsteNummer,
                 guelleKundeId: kunde.id,
+                betriebId: req.betriebId,
                 analysen: { create: analysen.map(a => ({ analyseId: a.id })) },
             },
         });
@@ -365,6 +394,7 @@ guelleRouter.post('/newDelivery', asyncHandler(async (req, res) => {
     let pdfBuffer: Buffer;
     try {
         pdfBuffer = await generateDeliveryNotePdf({
+            betrieb,
             lieferscheinNummer: lieferschein.nummer,
             customerName: `${kunde.vorname} ${kunde.name}`,
             customerAddress: `${kunde.strasse} ${kunde.hNr}, ${kunde.plz} ${kunde.wohnort}`,
@@ -428,8 +458,8 @@ async function stornoPruefen(tx: Prisma.TransactionClient, lieferscheinId: numbe
 guelleRouter.put('/reopenRecord/:id', asyncHandler(async (req, res) => {
     const id = requireId(req.params.id, 'id');
 
-    const abgabe = await prisma.guelleAbgabe.findUnique({
-        where: { id },
+    const abgabe = await prisma.guelleAbgabe.findFirst({
+        where: { id, betriebId: req.betriebId },
         include: { lieferschein: { select: { id: true, nummer: true } } },
     });
     if (!abgabe) throw new HttpError(404, 'Abgabe nicht gefunden.');
@@ -464,8 +494,8 @@ guelleRouter.put('/reopenDelivery/:nummer', asyncHandler(async (req, res) => {
     // auf dem Papier und ist das, was die Oberfläche kennt.
     const nummer = requireId(req.params.nummer, 'nummer');
 
-    const lieferschein = await prisma.lieferschein.findUnique({
-        where: { nummer },
+    const lieferschein = await prisma.lieferschein.findFirst({
+        where: { nummer, betriebId: req.betriebId },
         include: { _count: { select: { positionen: true } } },
     });
     if (!lieferschein) throw new HttpError(404, `Lieferschein Nr. ${nummer} nicht gefunden.`);

@@ -1,11 +1,20 @@
 import puppeteer from 'puppeteer';
 
-// Deine festen Backend-Daten
-const MY_COMPANY = {
-  name: "Doppelbauer Bioenergie GbR",
-  address: "Beispielstraße 1, 12345 Berlin",
-  email: "logistik@beispiel.de"
-};
+/**
+ * Absenderdaten des ausstellenden Betriebs. Standen früher fest im Code -
+ * seit der Mandantenfähigkeit kommen sie aus der Betrieb-Tabelle, damit jeder
+ * Betrieb seinen eigenen Briefkopf bekommt.
+ */
+export interface BetriebsAbsender {
+  name: string;
+  strasse: string;
+  plz: string;
+  ort: string;
+  ustIdNr?: string | null;
+  ansprechpartner?: string | null;
+  telefon?: string | null;
+  email?: string | null;
+}
 
 interface DeliveryItem {
   menge: number;
@@ -21,6 +30,7 @@ interface AnalysisItem {
   }
 
 interface DeliveryRequest {
+  betrieb: BetriebsAbsender;
   lieferscheinNummer: number;
   customerName: string;
   customerAddress: string;
@@ -47,6 +57,19 @@ export async function generateDeliveryNotePdf(data: DeliveryRequest): Promise<Bu
   }
 }
 
+/**
+ * Maskiert Text, der in das HTML des Lieferscheins eingesetzt wird. Betriebs-
+ * und Kundendaten stammen aus der Datenbank; ohne Maskierung würde ein
+ * Zeichen wie & oder < das Dokument zerlegen.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /** Mengen im deutschen Format ausgeben (Komma als Dezimaltrenner). */
 function mengeFormatiert(wert: number): string {
   return wert.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -60,6 +83,10 @@ export function buildDeliveryNoteHtml(data: DeliveryRequest): string {
   // Fließkomma-Summen runden (0.1 + 0.2 = 0.30000000000000004)
   const totalAmount = Math.round(data.items.reduce((sum, item) => sum + item.menge, 0) * 100) / 100;
   const nummerFormatiert = String(data.lieferscheinNummer).padStart(3, '0');
+  const b = data.betrieb;
+  const anschrift = `${b.strasse}, ${b.plz} ${b.ort}`;
+  // Nur ausgeben, was gepflegt ist - sonst stehen leere Zeilen auf dem Schein
+  const zeile = (text?: string | null) => (text ? `${escapeHtml(text)}<br>` : '');
 
   // HTML Template mit deinen festen und den dynamischen Daten
   const analysisHtml = data.analysis.map((an, index) => `
@@ -119,8 +146,8 @@ export function buildDeliveryNoteHtml(data: DeliveryRequest): string {
       <body>
         <div class="header">
           <div class="my-company">
-            Doppelbauer Bioenergie GbR
-            <span>Dorfstr. 8a, 86733 Alerheim - Bühl</span>
+            ${escapeHtml(b.name)}
+            <span>${escapeHtml(anschrift)}</span>
           </div>
           <div style="font-size: 16pt; font-weight: bold;">Lieferschein</div>
         </div>
@@ -128,8 +155,8 @@ export function buildDeliveryNoteHtml(data: DeliveryRequest): string {
         <div class="recipient-section">
           <div>
             <strong>Empfänger:</strong><br><br>
-            <div style="font-size: 11pt; font-weight: bold;">${data.customerName}</div>
-            ${data.customerAddress.replace(',', '<br>')}
+            <div style="font-size: 11pt; font-weight: bold;">${escapeHtml(data.customerName)}</div>
+            ${escapeHtml(data.customerAddress).replace(',', '<br>')}
           </div>
           <div class="delivery-number">Lieferschein Nr. &nbsp; ${nummerFormatiert}</div>
         </div>
@@ -173,12 +200,12 @@ export function buildDeliveryNoteHtml(data: DeliveryRequest): string {
 
         <div class="footer">
           <div>
-            <strong>Doppelbauer Bioenergie GbR</strong><br>
-            Dorfstr. 8a, 86733 Alerheim - Bühl<br>Ust.-IdNr. DE123456789
+            <strong>${escapeHtml(b.name)}</strong><br>
+            ${escapeHtml(anschrift)}<br>${b.ustIdNr ? 'Ust.-IdNr. ' + escapeHtml(b.ustIdNr) : ''}
           </div>
           <div style="text-align: right;">
             <strong>Kontakt</strong><br>
-            Siegfried Doppelbauer<br>Mobil: 0175-2973973<br>sdoppelbauer@gmx.de
+            ${zeile(b.ansprechpartner)}${b.telefon ? 'Mobil: ' + escapeHtml(b.telefon) + '<br>' : ''}${escapeHtml(b.email ?? '')}
           </div>
         </div>
       </body>

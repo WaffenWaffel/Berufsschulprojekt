@@ -13,22 +13,55 @@ datasource db {
 }
 
 
+// 0. Tabelle: Betrieb (Mandant)
+// Alle fachlichen Daten hängen an genau einem Betrieb. Die Felder hier
+// füllen zugleich Kopf- und Fußzeile des Lieferscheins sowie den Excel-Kopf -
+// vorher standen diese Angaben fest im Code.
+model Betrieb {
+  id              Int      @id @default(autoincrement())
+  name            String
+  strasse         String
+  plz             String
+  ort             String
+  ustIdNr         String?
+  ansprechpartner String?
+  telefon         String?
+  email           String?
+  aktiv           Boolean  @default(true)
+  erstelltAm      DateTime @default(now())
+
+  kunden          GuelleKunden[]
+  abgaben         GuelleAbgabe[]
+  analysen        Analyse[]
+  lieferscheine   Lieferschein[]
+  erzeuger        Erzeuger[]
+  schlaege        Schlag[]
+  sorten          Sorte[]
+  waegungen       Waegung[]
+}
+
 // 1. Tabelle: Erzeuger (Stammdaten der Landwirte)
 model Erzeuger {
   id           Int      @id @default(autoincrement())
-  erzeugerId   Int      @unique // ID aus der CSV (z.B. 1)
+  erzeugerId   Int      // ID aus der CSV (z.B. 1), nur je Betrieb eindeutig
   name         String   // Erzeuger Name
   strasse      String?
   ort          String?
   plz          String?
   
   schlaege     Schlag[]
+
+  betrieb      Betrieb  @relation(fields: [betriebId], references: [id])
+  betriebId    Int
+
+  @@unique([betriebId, erzeugerId])
+  @@index([betriebId])
 }
 
 // 2. Tabelle: Schlag (Stammdaten der Felder)
 model Schlag {
   id           Int      @id @default(autoincrement())
-  schlagIdExt  Int      @unique // Schlag ID aus der CSV (z.B. 53)
+  schlagIdExt  Int      // Schlag ID aus der CSV (z.B. 53), nur je Betrieb eindeutig
   name         String   // Schlag Name (z.B. "Goldacker am Bullenstall")
   groesseHa    Float?   // Wird später für Berechnungen pro ha benötigt
   
@@ -36,20 +69,33 @@ model Schlag {
   erzeuger     Erzeuger @relation(fields: [erzeugerId], references: [id])
   
   waegungen    Waegung[]
+
+  betrieb      Betrieb  @relation(fields: [betriebId], references: [id])
+  betriebId    Int
+
+  @@unique([betriebId, schlagIdExt])
+  @@index([betriebId])
 }
 
 // 3. Tabelle: Sorte (Kategorisierung)
 model Sorte {
   id        Int       @id @default(autoincrement())
-  sorteId   Int       @unique // Sorte ID aus der CSV (z.B. 1)
-  name      String    @unique    // Sorte Name (z.B. "Silomais")
+  sorteId   Int       // Sorte ID aus der CSV (z.B. 1)
+  name      String    // Sorte Name (z.B. "Silomais")
   waegungen Waegung[]
+
+  betrieb   Betrieb   @relation(fields: [betriebId], references: [id])
+  betriebId Int
+
+  @@unique([betriebId, sorteId])
+  @@unique([betriebId, name])
+  @@index([betriebId])
 }
 
 // 4. Tabelle: Waegung (Die eigentlichen Wiegedaten / Fuhren)
 model Waegung {
   id              Int      @id @default(autoincrement())
-  wsNr            Int      @unique // Wägeschein-Nr (z.B. 9409)
+  wsNr            Int      // Wägeschein-Nr (z.B. 9409), nur je Betrieb eindeutig
   datum           DateTime // ZW Datum
   uhrzeit         String   // ZW Uhrzeit
   netto           Float    // Netto Gewicht in t (z.B. 14.04)
@@ -66,6 +112,12 @@ model Waegung {
   sorte           Sorte    @relation(fields: [sorteId], references: [id])
 
   createdAt       DateTime @default(now())
+
+  betrieb         Betrieb  @relation(fields: [betriebId], references: [id])
+  betriebId       Int
+
+  @@unique([betriebId, wsNr])
+  @@index([betriebId])
 }
 
 
@@ -84,6 +136,11 @@ model GuelleKunden {
   // Relation: Ein Kunde kann viele Abgabedatensätze haben
   abgaben   GuelleAbgabe[]
   lieferscheine Lieferschein[]
+
+  betrieb   Betrieb         @relation(fields: [betriebId], references: [id])
+  betriebId Int
+
+  @@index([betriebId])
 }
 
 // 6. Tabelle: GülleAbgabe (Verknüpft mit GülleKunden)
@@ -102,7 +159,11 @@ model GuelleAbgabe {
   lieferschein   Lieferschein? @relation(fields: [lieferscheinId], references: [id], onDelete: SetNull)
   lieferscheinId Int?
 
+  betrieb        Betrieb      @relation(fields: [betriebId], references: [id])
+  betriebId      Int
+
   @@index([guelleKundeId, abgerechnetAm])
+  @@index([betriebId])
 }
 
 // 7. Tabelle: Analyse (Voll eigenständig)
@@ -115,12 +176,17 @@ model Analyse {
   datum              DateTime @db.Date
 
   lieferscheine      LieferscheinAnalyse[]
+
+  betrieb            Betrieb  @relation(fields: [betriebId], references: [id])
+  betriebId          Int
+
+  @@index([betriebId])
 }
 
 // 8. Tabelle: Lieferschein (dokumentiert eine Abrechnung)
 model Lieferschein {
   id             Int          @id @default(autoincrement())
-  nummer         Int          @unique // fortlaufende Lieferschein-Nr. auf dem PDF
+  nummer         Int          // fortlaufende Nr. auf dem PDF, je Betrieb eigener Nummernkreis
   erstelltAm     DateTime     @default(now())
 
   // Gesetzt, wenn alle Positionen wieder freigeschaltet wurden. Der Schein
@@ -132,6 +198,12 @@ model Lieferschein {
 
   positionen     GuelleAbgabe[]
   analysen       LieferscheinAnalyse[]
+
+  betrieb        Betrieb      @relation(fields: [betriebId], references: [id])
+  betriebId      Int
+
+  @@unique([betriebId, nummer])
+  @@index([betriebId])
 }
 
 // 9. Zwischentabelle: Welche Analysen wurden auf welchem Lieferschein abgedruckt

@@ -1,12 +1,25 @@
+import 'dotenv/config';
 import fs from 'fs';
 import csv from 'csv-parser';
 import { prisma } from "./lib/prisma";
 
-// const prisma = new PrismaClient();
+// Die importierten Daten gehören einem Betrieb. Solange es keine Anmeldung
+// gibt, kommt er wie im Server aus BETRIEB_ID.
+const BETRIEB_ID = Number(process.env.BETRIEB_ID) || 1;
 
 async function importCsv() {
   const results: any[] = [];
-  const csvFilePath = './ExportWS27092025_1.csv'; 
+  const csvFilePath = './ExportWS27092025_1.csv';
+
+  const betrieb = await prisma.betrieb.findUnique({ where: { id: BETRIEB_ID } });
+  if (!betrieb) {
+    console.error(
+      `Betrieb mit der ID ${BETRIEB_ID} existiert nicht.\n` +
+      `Vorhandene anzeigen mit: npm run betrieb:liste`
+    );
+    return;
+  }
+  console.log(`Import für Betrieb: ${betrieb.name} (ID ${betrieb.id})`);
 
   if (!fs.existsSync(csvFilePath)) {
     console.error("Datei nicht gefunden: " + csvFilePath);
@@ -42,9 +55,10 @@ async function importCsv() {
           // 1. Erzeuger (Stammdaten)
           const erzeugerId = parseInt(row['Erzeuger ID']);
           const erzeuger = await prisma.erzeuger.upsert({
-            where: { erzeugerId: erzeugerId },
+            where: { betriebId_erzeugerId: { betriebId: BETRIEB_ID, erzeugerId } },
             update: {},
             create: {
+              betriebId: BETRIEB_ID,
               erzeugerId: erzeugerId,
               name: (row['Erzeuger Name'] || "Unbekannt").trim(),
               ort: row['Erzeuger Ort']?.trim() || "",
@@ -56,9 +70,10 @@ async function importCsv() {
           // 2. Schlag (Stammdaten)
           const schlagIdExt = parseInt(row['Schlag ID']);
           const schlag = await prisma.schlag.upsert({
-            where: { schlagIdExt: schlagIdExt },
+            where: { betriebId_schlagIdExt: { betriebId: BETRIEB_ID, schlagIdExt } },
             update: {},
             create: {
+              betriebId: BETRIEB_ID,
               schlagIdExt: schlagIdExt,
               name: (row['Schlag Name'] || "Unbekannt").trim(),
               erzeugerId: erzeuger.id 
@@ -72,8 +87,9 @@ const dateObj = dateParts.length === 3
   : new Date();
 
 await prisma.waegung.upsert({
-  where: { 
-    wsNr: wsNummer // Hier wird geprüft, ob die Nummer schon existiert
+  where: {
+    // je Betrieb eindeutig
+    betriebId_wsNr: { betriebId: BETRIEB_ID, wsNr: wsNummer }
   },
   update: {
     // Falls sie existiert, aktualisieren wir die Daten (optional)
@@ -86,6 +102,7 @@ await prisma.waegung.upsert({
   },
   create: {
     // Falls sie nicht existiert, neu anlegen
+    betriebId: BETRIEB_ID,
     wsNr: wsNummer,
     datum: dateObj,
     uhrzeit: (row['ZW Uhrzeit'] || "00:00").trim(),
@@ -114,14 +131,15 @@ async function getSorteId(name: string) {
   
   // Wir suchen erst, ob es die Sorte gibt
   const existingSorte = await prisma.sorte.findUnique({
-    where: { name: cleanName }
+    where: { betriebId_name: { betriebId: BETRIEB_ID, name: cleanName } }
   });
 
   if (existingSorte) return existingSorte.id;
 
   // Wenn nicht, legen wir sie neu an
   const neueSorte = await prisma.sorte.create({
-    data: { 
+    data: {
+      betriebId: BETRIEB_ID,
       name: cleanName,
       // Falls sorteId ein Pflichtfeld ist, das NICHT autoincrement ist:
       // Wir nehmen einen Zeitstempel oder Zufallszahl, damit sie unique bleibt.

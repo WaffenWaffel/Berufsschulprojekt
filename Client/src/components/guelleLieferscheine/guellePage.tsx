@@ -20,12 +20,13 @@ import { FormMessage } from "./FormMessage";
 import { DataTable } from "../dataTable";
 import { ModeToggle } from "../mode-toggle";
 import { apiFetch } from "@/lib/api";
-import type { Analyse, GuelleDaten, GuelleKunde } from "./types";
+import type { Analyse, Betrieb, GuelleDaten, GuelleKunde } from "./types";
 
 export function GuellePage() {
   const [abgaben, setAbgaben] = useState<GuelleDaten[]>([]);
   const [kunden, setKunden] = useState<GuelleKunde[]>([]);
   const [analysen, setAnalysen] = useState<Analyse[]>([]);
+  const [betrieb, setBetrieb] = useState<Betrieb | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [ladeFehler, setLadeFehler] = useState<string | null>(null);
@@ -45,14 +46,16 @@ export function GuellePage() {
       // zeigt die Seite dann sofort einen Fehler, obwohl der Server nur noch
       // ein paar Sekunden braucht. Nur beim Lesen - Schreibvorgänge werden
       // bewusst nicht wiederholt.
-      const [neueAbgaben, neueKunden, neueAnalysen] = await Promise.all([
+      const [neueAbgaben, neueKunden, neueAnalysen, neuerBetrieb] = await Promise.all([
         apiFetch<GuelleDaten[]>("/api/getGuelleDaten", { versuche: 5 }),
         apiFetch<GuelleKunde[]>("/api/getCustomer", { versuche: 5 }),
         apiFetch<Analyse[]>("/api/getAnalysis", { versuche: 5 }),
+        apiFetch<Betrieb>("/api/betrieb", { versuche: 5 }),
       ]);
       setAbgaben(neueAbgaben);
       setKunden(neueKunden);
       setAnalysen(neueAnalysen);
+      setBetrieb(neuerBetrieb);
     } catch (error) {
       setLadeFehler(
         error instanceof Error ? error.message : "Daten konnten nicht geladen werden."
@@ -130,7 +133,13 @@ export function GuellePage() {
   return (
     <main className="flex-1 overflow-y-auto bg-background p-6">
       <header className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Gülle Lieferscheine</h1>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Gülle Lieferscheine</h1>
+          {/* Zeigt, wessen Daten gerade sichtbar sind */}
+          {betrieb && (
+            <p className="text-sm text-muted-foreground">{betrieb.Name}</p>
+          )}
+        </div>
         <ModeToggle />
       </header>
 

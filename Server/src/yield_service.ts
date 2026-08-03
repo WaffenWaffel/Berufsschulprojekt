@@ -1,7 +1,14 @@
 import ExcelJS from 'exceljs';
 import { Response } from 'express';
 
-export async function generateExcel(data: any[], res: Response) {
+export interface ExcelBetrieb {
+  name: string;
+  strasse: string;
+  plz: string;
+  ort: string;
+}
+
+export async function generateExcel(data: any[], res: Response, betrieb: ExcelBetrieb) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Mais 2025');
 
@@ -31,7 +38,8 @@ export async function generateExcel(data: any[], res: Response) {
   // --- HEADER BEREICH ---
   // Zeile 2: Firmenname
   worksheet.mergeCells('C2:H2');
-  worksheet.getCell('C2').value = 'Doppelbauer Bioenergie GbR, Dorfstr. 8a, 86733 Alerheim-Bühl';
+  worksheet.getCell('C2').value =
+    `${betrieb.name}, ${betrieb.strasse}, ${betrieb.plz} ${betrieb.ort}`;
   worksheet.getCell('C2').font = { size: 14, bold: true };
 
   // Zeile 4: Titel & Datum

@@ -5,7 +5,8 @@ import 'dotenv/config';
 
 import { guelleRouter } from './routes/guelle.routes';
 import { generateExcel } from './yield_service';
-import { errorHandler } from './lib/validation';
+import { errorHandler, asyncHandler } from './lib/validation';
+import { betriebKontext, betriebLaden, betriebPruefen } from './lib/betrieb';
 import { schlagTestDaten, waageTestDaten } from './testdaten';
 
 const app = express();
@@ -17,8 +18,23 @@ app.set('trust proxy', 1);
 
 app.use(express.json());
 
+// Setzt den aktiven Betrieb an jede Anfrage. Muss vor allen Routen stehen.
+app.use(betriebKontext);
+
 // Alle Endpunkte der Seite "Gülle Lieferscheine"
 app.use('/api', guelleRouter);
+
+// Wessen Daten sehe ich gerade? Wird in der Kopfzeile angezeigt.
+app.get('/api/betrieb', asyncHandler(async (req: Request, res: Response) => {
+    const betrieb = await betriebLaden(req.betriebId);
+    res.json({
+        id: betrieb.id,
+        Name: betrieb.name,
+        Strasse: betrieb.strasse,
+        PLZ: betrieb.plz,
+        Ort: betrieb.ort,
+    });
+}));
 
 // ==========================================
 // FUTTERDATEN / WAAGE
@@ -46,9 +62,10 @@ app.put('/api/updateSchlag/:id', (req: Request, res: Response) => {
 // ==========================================
 // EXCEL EXPORT
 // ==========================================
-app.get('/api/exportExcel', async (_req: Request, res: Response) => {
+app.get('/api/exportExcel', async (req: Request, res: Response) => {
     try {
-        await generateExcel(schlagTestDaten, res);
+        const betrieb = await betriebLaden(req.betriebId);
+        await generateExcel(schlagTestDaten, res, betrieb);
     } catch (error) {
         console.error('Excel Export fehlgeschlagen:', error);
         res.status(500).send('Excel Export fehlgeschlagen');
@@ -87,6 +104,7 @@ if (fs.existsSync(path.join(clientDist, 'index.html'))) {
 // Zentrale Fehlerbehandlung - muss nach allen Routen registriert werden
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`🚀 Server läuft auf Port ${PORT}`);
+    await betriebPruefen();
 });

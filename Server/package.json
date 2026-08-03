@@ -16,6 +16,8 @@
     "build": "prisma generate && tsc",
     "start": "node dist/index.js",
     "import-csv": "tsx src/importCsv.ts",
+    "betrieb:liste": "tsx src/scripts/betrieb.ts liste",
+    "betrieb:neu": "tsx src/scripts/betrieb.ts neu",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:studio": "prisma studio"
