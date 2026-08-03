@@ -19,10 +19,18 @@ import { createColumns } from "./columns";
 import { FormMessage } from "./FormMessage";
 import { DataTable } from "../dataTable";
 import { ModeToggle } from "../mode-toggle";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+import type { AngemeldeterBenutzer } from "../anmeldung/types";
 import { apiFetch } from "@/lib/api";
 import type { Analyse, Betrieb, GuelleDaten, GuelleKunde } from "./types";
 
-export function GuellePage() {
+interface GuellePageProps {
+  benutzer: AngemeldeterBenutzer;
+  onAbmelden: () => void;
+}
+
+export function GuellePage({ benutzer, onAbmelden }: GuellePageProps) {
   const [abgaben, setAbgaben] = useState<GuelleDaten[]>([]);
   const [kunden, setKunden] = useState<GuelleKunde[]>([]);
   const [analysen, setAnalysen] = useState<Analyse[]>([]);
@@ -140,7 +148,16 @@ export function GuellePage() {
             <p className="text-sm text-muted-foreground">{betrieb.Name}</p>
           )}
         </div>
-        <ModeToggle />
+        <div className="flex items-center gap-3">
+          <span className="hidden text-sm text-muted-foreground sm:inline">
+            {benutzer.Name}
+          </span>
+          <ModeToggle />
+          <Button variant="outline" size="sm" onClick={onAbmelden}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Abmelden
+          </Button>
+        </div>
       </header>
 
       {ladeFehler && (

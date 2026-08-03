@@ -91,7 +91,7 @@ export function GuelleInput({ kunden, onSuccess }: GuelleInputProps) {
 
   return (
     <Card className="mx-auto w-full max-w-sm">
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <CardHeader>
           <CardTitle>Gülle Menge eingeben</CardTitle>
         </CardHeader>

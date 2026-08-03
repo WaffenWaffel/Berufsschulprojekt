@@ -5,11 +5,18 @@ produktiv zu betreiben. Getestet mit Ubuntu 24.04 LTS.
 
 ---
 
-## ⚠️ Vorher lesen: Die Anwendung hat keine Zugriffskontrolle
+## Zugriffsschutz
 
-Aktuell kann **jeder, der die Adresse kennt**, alle Kundendaten lesen, ändern
-und löschen — Namen, Anschriften, Liefermengen. Es gibt keine Anmeldung, keine
-Benutzerverwaltung, keinen Schutz.
+Die Anwendung hat inzwischen eine **eigene Anmeldung** (siehe
+[LOGIN-ENTWURF.md](LOGIN-ENTWURF.md)). Ohne gültige Sitzung antwortet die API
+mit 401, und jeder Benutzer sieht ausschließlich die Daten seines Betriebs.
+
+Der in dieser Anleitung beschriebene Passwortschutz im Reverse Proxy ist damit
+nicht mehr zwingend. Er bleibt trotzdem sinnvoll als zweite Schicht, solange
+die Anwendung frisch im Netz steht — dann kommt niemand überhaupt bis zur
+Anmeldemaske.
+
+Zur Erinnerung, warum das wichtig war:
 
 Solange das so ist, gilt:
 

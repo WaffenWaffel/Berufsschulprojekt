@@ -6,7 +6,9 @@ import 'dotenv/config';
 import { guelleRouter } from './routes/guelle.routes';
 import { generateExcel } from './yield_service';
 import { errorHandler, asyncHandler } from './lib/validation';
-import { betriebKontext, betriebLaden, betriebPruefen } from './lib/betrieb';
+import { anmeldungErforderlich, betriebKontext, betriebLaden, startpruefung } from './lib/betrieb';
+import { authRouter } from './routes/auth.routes';
+import { abgelaufeneAufraeumen } from './lib/sitzung';
 import { schlagTestDaten, waageTestDaten } from './testdaten';
 
 const app = express();
@@ -18,8 +20,16 @@ app.set('trust proxy', 1);
 
 app.use(express.json());
 
-// Setzt den aktiven Betrieb an jede Anfrage. Muss vor allen Routen stehen.
+// Liest die Sitzung und hängt Benutzer und Betrieb an die Anfrage.
+// Muss vor allen Routen stehen, weist aber noch niemanden ab.
 app.use(betriebKontext);
+
+// Anmelden und Abmelden bleiben ohne Sitzung erreichbar
+app.use('/api', authRouter);
+
+// Ab hier ist eine Anmeldung Pflicht. Alles darunter sieht nur die Daten
+// des Betriebs, zu dem der angemeldete Benutzer gehört.
+app.use('/api', anmeldungErforderlich);
 
 // Alle Endpunkte der Seite "Gülle Lieferscheine"
 app.use('/api', guelleRouter);
@@ -106,5 +116,7 @@ app.use(errorHandler);
 
 app.listen(PORT, async () => {
     console.log(`🚀 Server läuft auf Port ${PORT}`);
-    await betriebPruefen();
+    const entfernt = await abgelaufeneAufraeumen();
+    if (entfernt > 0) console.log(`   ${entfernt} abgelaufene Sitzung(en) entfernt.`);
+    await startpruefung();
 });

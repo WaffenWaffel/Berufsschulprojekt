@@ -1,17 +1,14 @@
 import type { NextFunction, Request, Response } from 'express';
 import { prisma } from './prisma';
 import { HttpError } from './validation';
+import { sitzungPruefen, type AngemeldeterBenutzer } from './sitzung';
 
 /**
- * Betriebskontext (Mandant).
+ * Betriebskontext (Mandant) und Anmeldung.
  *
- * Alle fachlichen Daten hängen an genau einem Betrieb. Jede Abfrage muss
- * danach filtern, sonst sieht ein Betrieb die Daten des anderen.
- *
- * Solange es keine Anmeldung gibt, kommt der aktive Betrieb aus der
- * Umgebungsvariable BETRIEB_ID. Sobald die Anmeldung steht, liefert dieselbe
- * Middleware den Wert aus der Sitzung - die Aufrufstellen in den Routen
- * ändern sich dann nicht mehr.
+ * Alle fachlichen Daten hängen an genau einem Betrieb. Jede Abfrage in den
+ * Routen filtert nach req.betriebId - woher dieser Wert kommt, entscheidet
+ * sich hier an einer einzigen Stelle.
  */
 
 declare global {
@@ -19,45 +16,44 @@ declare global {
     namespace Express {
         interface Request {
             betriebId: number;
+            benutzer?: AngemeldeterBenutzer;
         }
     }
 }
 
-const AUS_UMGEBUNG = Number(process.env.BETRIEB_ID) || 1;
+/**
+ * Setzt Benutzer und Betrieb aus der Sitzung. Läuft vor allen Routen und
+ * weist noch niemanden ab - das übernimmt anmeldungErforderlich, damit die
+ * Anmelderoute selbst offen bleibt.
+ */
+export async function betriebKontext(req: Request, _res: Response, next: NextFunction) {
+    try {
+        const benutzer = await sitzungPruefen(req);
+        if (benutzer) {
+            req.benutzer = benutzer;
+            req.betriebId = benutzer.betriebId;
+        }
+        next();
+    } catch (fehler) {
+        next(fehler);
+    }
+}
 
-/** Hängt den aktiven Betrieb an jede Anfrage. */
-export function betriebKontext(req: Request, _res: Response, next: NextFunction) {
-    req.betriebId = AUS_UMGEBUNG;
+/** Schützt alle Routen, die einen angemeldeten Benutzer voraussetzen. */
+export function anmeldungErforderlich(req: Request, _res: Response, next: NextFunction) {
+    if (!req.benutzer) {
+        return next(new HttpError(401, 'Nicht angemeldet.'));
+    }
     next();
 }
 
-/**
- * Prüft beim Start, ob der eingestellte Betrieb existiert, und weist darauf
- * hin, dass die Zuordnung vorläufig ist. Ohne diesen Hinweis wäre nur schwer
- * zu erkennen, warum die Anwendung keine Daten anzeigt.
- */
-export async function betriebPruefen(): Promise<void> {
-    const betrieb = await prisma.betrieb.findUnique({ where: { id: AUS_UMGEBUNG } });
-
-    if (!betrieb) {
-        const vorhandene = await prisma.betrieb.findMany({
-            select: { id: true, name: true },
-            orderBy: { id: 'asc' },
-        });
-        console.warn(
-            `\n⚠  Betrieb mit der ID ${AUS_UMGEBUNG} existiert nicht. Die Anwendung zeigt keine Daten an.\n` +
-            (vorhandene.length
-                ? `   Vorhanden: ${vorhandene.map(b => `${b.id} = ${b.name}`).join(', ')}\n` +
-                  `   Passenden Wert als BETRIEB_ID in Server/.env eintragen.\n`
-                : `   Es ist noch kein Betrieb angelegt. Anlegen mit: npm run betrieb:neu\n`)
-        );
-        return;
+/** Schützt Routen, die nur der Inhaber ausführen darf. */
+export function nurInhaber(req: Request, _res: Response, next: NextFunction) {
+    if (!req.benutzer) return next(new HttpError(401, 'Nicht angemeldet.'));
+    if (req.benutzer.rolle !== 'INHABER') {
+        return next(new HttpError(403, 'Dafür fehlt dir die Berechtigung. Bitte den Betriebsinhaber fragen.'));
     }
-
-    console.log(
-        `🏢 Aktiver Betrieb: ${betrieb.name} (ID ${betrieb.id}) ` +
-        `— vorläufig über BETRIEB_ID, bis die Anmeldung eingebaut ist.`
-    );
+    next();
 }
 
 /**
@@ -67,10 +63,32 @@ export async function betriebPruefen(): Promise<void> {
 export async function betriebLaden(betriebId: number) {
     const betrieb = await prisma.betrieb.findUnique({ where: { id: betriebId } });
     if (!betrieb) {
-        throw new HttpError(
-            500,
-            `Der eingestellte Betrieb (ID ${betriebId}) existiert nicht. Bitte BETRIEB_ID prüfen.`
-        );
+        throw new HttpError(500, `Der Betrieb (ID ${betriebId}) existiert nicht.`);
     }
     return betrieb;
+}
+
+/** Hinweis beim Start, falls noch niemand angelegt wurde. */
+export async function startpruefung(): Promise<void> {
+    const [betriebe, benutzer] = await Promise.all([
+        prisma.betrieb.count(),
+        prisma.benutzer.count(),
+    ]);
+
+    if (betriebe === 0) {
+        console.warn(
+            '\n⚠  Es ist noch kein Betrieb angelegt. Niemand kann sich anmelden.\n' +
+            '   Anlegen mit: npm run betrieb:neu -- "Name" "Straße" "PLZ" "Ort"\n'
+        );
+        return;
+    }
+    if (benutzer === 0) {
+        console.warn(
+            '\n⚠  Es ist noch kein Benutzer angelegt. Niemand kann sich anmelden.\n' +
+            '   Anlegen mit: npm run benutzer:neu -- <BetriebId> "E-Mail" "Name" INHABER\n'
+        );
+        return;
+    }
+
+    console.log(`🔐 ${benutzer} Benutzer in ${betriebe} Betrieb(en) — Anmeldung aktiv.`);
 }

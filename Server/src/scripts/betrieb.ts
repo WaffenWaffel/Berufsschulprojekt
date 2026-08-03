@@ -31,7 +31,7 @@ async function liste() {
         if (!b.aktiv) console.log('         (inaktiv)');
         console.log();
     }
-    console.log('Den gewünschten Wert als BETRIEB_ID in Server/.env eintragen.\n');
+    console.log('Benutzer zu einem Betrieb anlegen: npm run benutzer:neu -- <BetriebId> "email" "Name" INHABER\n');
 }
 
 async function neu(argumente: string[]) {
@@ -59,8 +59,8 @@ async function neu(argumente: string[]) {
     });
 
     console.log(`\n✓ Betrieb angelegt: ${betrieb.name} (ID ${betrieb.id})\n`);
-    console.log(`Damit die Anwendung diesen Betrieb anzeigt, in Server/.env eintragen:`);
-    console.log(`  BETRIEB_ID=${betrieb.id}\n`);
+    console.log('Jetzt noch einen Inhaber für diesen Betrieb anlegen:');
+    console.log(`  npm run benutzer:neu -- ${betrieb.id} "email@hof.de" "Vorname Nachname" INHABER\n`);
 }
 
 async function main() {

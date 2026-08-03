@@ -1,14 +1,18 @@
-# Anmeldung — technischer Entwurf
+# Anmeldung — Entwurf und Umsetzung
 
-Stand: Entwurf. **Noch nichts davon ist gebaut.**
+**Stand: umgesetzt (Variante A).** Dieses Dokument war ursprünglich der
+Entwurf; die beschriebene Lösung ist inzwischen gebaut.
 
-Die Datenstruktur trennt bereits nach Betrieb (siehe `Betrieb` in
-`Server/prisma/schema.prisma`). Was fehlt, ist die Anmeldung, die einen
-Benutzer seinem Betrieb zuordnet. Bis dahin kommt der aktive Betrieb aus
-`BETRIEB_ID` in `Server/.env` — und die Anwendung ist ungeschützt.
+Umgesetzt wurde die schlichte Variante: eine zentrierte Anmeldekarte mit
+E-Mail und Passwort. Der Betrieb ergibt sich aus dem Benutzer und steht nach
+dem Anmelden in der Kopfzeile.
 
-Die drei Oberflächen-Varianten zum Vergleichen liegen als Artifact vor. Dieses
-Dokument beschreibt den Unterbau, der unter allen dreien gleich ist.
+**Nicht umgesetzt** (die anderen beiden Entwürfe):
+
+- Variante B — zweispaltig, mehrere Betriebe je Person. Dafür müsste
+  `Benutzer` zu einer n:m-Beziehung werden.
+- Variante C — PIN-Anmeldung fürs Tablet. Ließe sich ergänzen, ohne das
+  Bestehende umzubauen.
 
 ---
 
@@ -19,6 +23,8 @@ Dokument beschreibt den Unterbau, der unter allen dreien gleich ist.
 | Verfahren | Serverseitige Sitzung, Kennung im httpOnly-Cookie |
 | Kontenanlage | Nur der Administrator, keine Selbstregistrierung |
 | Betriebe | Über `npm run betrieb:neu`, kein Endpunkt |
+| Oberfläche | Variante A (schlicht) |
+| Passwort-Hashing | scrypt aus der Node-Standardbibliothek |
 
 Warum Sitzung statt JWT: Abmelden wirkt sofort, weil die Sitzung serverseitig
 gelöscht wird. Ein JWT bliebe bis zum Ablauf gültig. Da Express das Frontend
@@ -79,9 +85,18 @@ des mitgeschickten Werts.
 
 ## Passwörter
 
-Argon2id, ersatzweise bcrypt mit mindestens 12 Runden. Das Klartextpasswort
-wird nie gespeichert, nie protokolliert und nie in einer Fehlermeldung
-zurückgegeben.
+Umgesetzt mit **scrypt** aus der Node-Standardbibliothek (`Server/src/lib/passwort.ts`),
+nicht mit Argon2id oder bcrypt wie ursprünglich vorgesehen. Grund: Beide müssen
+beim Installieren nativ übersetzt werden, was auf einem kleinen Server gern
+fehlschlägt — und das Deployment sollte ohne Build-Werkzeuge auskommen. scrypt
+ist ebenfalls speicherhart, eingebaut und für diesen Zweck ausreichend.
+
+Parameter: N=2^16, r=8, p=1 — rund 170 ms je Anmeldung. Das gespeicherte
+Format ist selbstbeschreibend (`scrypt$N$r$p$salt$hash`), die Parameter lassen
+sich also später erhöhen, ohne bestehende Hashes ungültig zu machen.
+
+Das Klartextpasswort wird nie gespeichert, nie protokolliert und nie in einer
+Fehlermeldung zurückgegeben.
 
 Beim Anlegen gilt eine Mindestlänge von 12 Zeichen. Keine erzwungenen
 Sonderzeichen — Länge schützt mehr als Zeichenklassen und führt seltener zu
@@ -119,8 +134,8 @@ path:     /
 Die vorhandene Middleware in `Server/src/lib/betrieb.ts` wird erweitert:
 
 ```
-Heute:   req.betriebId = Number(process.env.BETRIEB_ID) || 1
-Künftig: Sitzung aus dem Cookie laden → Benutzer → req.betriebId = benutzer.betriebId
+Vorher:  req.betriebId = Number(process.env.BETRIEB_ID) || 1
+Jetzt:   Sitzung aus dem Cookie laden → Benutzer → req.betriebId = benutzer.betriebId
          zusätzlich req.benutzer für Rollenprüfungen
 ```
 
@@ -159,9 +174,10 @@ fünf Personen je Betrieb nichts.
 Anmeldung 15 Minuten gesperrt. Ohne diese Bremse lässt sich ein Passwort
 automatisiert durchprobieren.
 
-**Passwort zurücksetzen.** Bewusst ohne E-Mail-Versand: Der Inhaber setzt für
-seine Mitarbeiter ein neues Passwort, das beim ersten Anmelden geändert werden
-muss. Kein Mailserver, keine Reset-Links, die ablaufen können.
+**Passwort zurücksetzen.** Bewusst ohne E-Mail-Versand: `npm run benutzer:passwort`
+vergibt ein neues Startpasswort und beendet alle offenen Sitzungen des Kontos.
+Beim nächsten Anmelden erzwingt die Anwendung eine Änderung. Kein Mailserver,
+keine Reset-Links, die ablaufen können.
 
 **Erster Zugang.** Ein Skript `npm run benutzer:neu` legt zu einem Betrieb den
 ersten Inhaber an — analog zu `betrieb:neu`.

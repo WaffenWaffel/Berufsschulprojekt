@@ -122,7 +122,7 @@ export function CreateDelivery({ kunden, analysen, abgaben, onSuccess }: CreateD
 
   return (
     <Card className="mx-auto w-full max-w-sm">
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <CardHeader>
           <CardTitle>Lieferschein erstellen</CardTitle>
         </CardHeader>

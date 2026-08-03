@@ -30,6 +30,7 @@ model Betrieb {
   aktiv           Boolean  @default(true)
   erstelltAm      DateTime @default(now())
 
+  benutzer        Benutzer[]
   kunden          GuelleKunden[]
   abgaben         GuelleAbgabe[]
   analysen        Analyse[]
@@ -214,4 +215,52 @@ model LieferscheinAnalyse {
   analyseId      Int
 
   @@id([lieferscheinId, analyseId])
+}
+
+// 10. Tabelle: Benutzer (Anmeldung)
+model Benutzer {
+  id             Int       @id @default(autoincrement())
+  email          String
+  passwortHash   String
+  name           String
+  rolle          Rolle     @default(MITARBEITER)
+  aktiv          Boolean   @default(true)
+  // Erzwingt beim ersten Anmelden eine Passwortänderung. Wird gesetzt, wenn
+  // der Inhaber ein Passwort für jemand anderen vergibt.
+  passwortWechseln Boolean @default(false)
+  erstelltAm     DateTime  @default(now())
+  letzterLogin   DateTime?
+
+  betrieb        Betrieb   @relation(fields: [betriebId], references: [id])
+  betriebId      Int
+
+  sitzungen      Sitzung[]
+
+  // E-Mail nur je Betrieb eindeutig: Dieselbe Person kann später für zwei
+  // Betriebe ein Konto haben, ohne dass das Modell umgebaut werden muss.
+  @@unique([betriebId, email])
+  @@index([betriebId])
+}
+
+enum Rolle {
+  INHABER      // pflegt Stammdaten und Benutzerkonten
+  MITARBEITER  // erfasst Abgaben, erstellt Lieferscheine
+}
+
+// 11. Tabelle: Sitzung (angemeldete Browser)
+model Sitzung {
+  // Zufällige Kennung, steht im Cookie
+  id             String   @id
+  // Hash des Geheimnisses. Wer die Datenbank liest - etwa über ein Backup -
+  // könnte sonst fremde Sitzungen übernehmen.
+  tokenHash      String
+  laeuftAb       DateTime
+  erstelltAm     DateTime @default(now())
+  letzterZugriff DateTime @default(now())
+
+  benutzer       Benutzer @relation(fields: [benutzerId], references: [id], onDelete: Cascade)
+  benutzerId     Int
+
+  @@index([benutzerId])
+  @@index([laeuftAb])
 }

@@ -67,6 +67,8 @@ async function einmalAnfragen(pfad: string, options: RequestInit): Promise<Respo
   try {
     return await fetch(`${API_BASE}${pfad}`, {
       ...options,
+      // Sitzungscookie mitschicken
+      credentials: "include",
       headers: {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...options.headers,
@@ -113,6 +115,7 @@ export async function apiDownload(
 ): Promise<Response> {
   const response = await fetch(`${API_BASE}${pfad}`, {
     ...options,
+    credentials: "include",
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...options.headers,

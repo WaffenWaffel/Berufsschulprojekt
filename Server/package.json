@@ -18,6 +18,9 @@
     "import-csv": "tsx src/importCsv.ts",
     "betrieb:liste": "tsx src/scripts/betrieb.ts liste",
     "betrieb:neu": "tsx src/scripts/betrieb.ts neu",
+    "benutzer:liste": "tsx src/scripts/benutzer.ts liste",
+    "benutzer:neu": "tsx src/scripts/benutzer.ts neu",
+    "benutzer:passwort": "tsx src/scripts/benutzer.ts passwort",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:studio": "prisma studio"
